@@ -702,8 +702,8 @@ class Paddle:
         Permite a la paleta disparar proyectiles por un tiempo limitado.
         """
         self.laser_active = True
-        # 1440 frames = 24 segundos a 60 FPS (triplicado)
-        self.laser_timer = 1440
+        # 2000 frames = 20 segundos a 60 FPS (reducido)
+        self.laser_timer = 2000
 
     def can_shoot(self):
         """
@@ -839,6 +839,10 @@ class Ball:
         self.trail = []  # Lista de posiciones anteriores
         self.trail_length = 10  # Máximo de posiciones a recordar
 
+        # Modo destructor
+        self.destroyer_mode = False  # Si puede destruir ladrillos de un golpe
+        self.destroyer_timer = 0  # Tiempo restante del modo destructor
+
         # Sistema de cooldown para evitar múltiples hits
         self.collision_cooldown = 0  # Frames restantes de cooldown
         self.last_hit_brick = None  # Último ladrillo golpeado
@@ -899,6 +903,12 @@ class Ball:
         # Actualizar cooldown de colisión
         if self.collision_cooldown > 0:
             self.collision_cooldown -= 1
+
+        # Actualizar timer del modo destructor
+        if self.destroyer_timer > 0:
+            self.destroyer_timer -= 1
+            if self.destroyer_timer <= 0:
+                self.destroyer_mode = False
 
     def bounce_x(self):
         """
@@ -998,13 +1008,32 @@ class Ball:
                 screen, trail_color, (int(trail_x), int(trail_y)), trail_radius
             )
 
-        # Dibujar pelota principal (círculo blanco)
-        pygame.draw.circle(screen, WHITE, (int(self.x), int(self.y)), self.radius)
+        # Dibujar pelota principal
+        if self.destroyer_mode:
+            # En modo destructor, pelota roja con efecto pulsante
+            pulse = abs(math.sin(pygame.time.get_ticks() * 0.01)) * 50 + 205
+            ball_color = (int(pulse), 50, 50)  # Rojo pulsante
+            # Dibujar anillo exterior para efecto
+            pygame.draw.circle(
+                screen, (255, 100, 100), (int(self.x), int(self.y)), self.radius + 2, 2
+            )
+        else:
+            # Pelota normal (blanca)
+            ball_color = WHITE
+
+        pygame.draw.circle(screen, ball_color, (int(self.x), int(self.y)), self.radius)
 
         # Agregar efecto de brillo (círculo más pequeño y claro)
+        if self.destroyer_mode:
+            # Brillo dorado para modo destructor
+            glow_color = (255, 255, 150)
+        else:
+            # Brillo azul normal
+            glow_color = (200, 200, 255)
+
         pygame.draw.circle(
             screen,
-            (200, 200, 255),  # Azul claro
+            glow_color,
             (int(self.x - 3), int(self.y - 3)),  # Ligeramente desplazado
             self.radius // 3,  # Un tercio del tamaño original
         )
@@ -1022,30 +1051,20 @@ class Ball:
         )
 
 
-class Brick:
-    def __init__(self, x, y, color, points=10):
-        self.x = x
-        self.y = y
-        self.width = BRICK_WIDTH
-        self.height = BRICK_HEIGHT
-        self.color = color
-        self.destroyed = False
-        self.points = points
-
-
 # ==========================================
 # CONFIGURACIÓN DE RESISTENCIA DE LADRILLOS
 # ==========================================
 # Mapeo de colores a resistencia (hits necesarios para destruir)
+# Sistema simplificado: solo 1, 2 o 3 golpes máximo
 BRICK_RESISTANCE = {
-    RED: 8,  # Rojo - máxima resistencia
-    (255, 128, 0): 7,  # Naranja - muy alta resistencia
-    YELLOW: 6,  # Amarillo - alta resistencia
-    (255, 0, 255): 5,  # Magenta - resistencia media-alta
-    (0, 255, 255): 4,  # Cian - resistencia media
-    GREEN: 3,  # Verde - resistencia media-baja
-    BLUE: 2,  # Azul - baja resistencia
-    (128, 128, 128): 1,  # Gris - mínima resistencia
+    RED: 3,  # Rojo - máxima resistencia (3 golpes)
+    (255, 128, 0): 3,  # Naranja - máxima resistencia (3 golpes)
+    YELLOW: 2,  # Amarillo - resistencia media (2 golpes)
+    (255, 0, 255): 2,  # Magenta - resistencia media (2 golpes)
+    (0, 255, 255): 2,  # Cian - resistencia media (2 golpes)
+    GREEN: 2,  # Verde - resistencia media (2 golpes)
+    BLUE: 1,  # Azul - baja resistencia (1 golpe)
+    (128, 128, 128): 1,  # Gris - baja resistencia (1 golpe)
 }
 
 
@@ -1213,9 +1232,41 @@ class Brick:
                 ):  # Solo mostrar para ladrillos con resistencia visible
                     hits_left = self.max_hits - self.current_hits
                     font = pygame.font.Font(None, 16)
-                    text = font.render(str(hits_left), True, WHITE)
-                    text_rect = text.get_rect(center=(x + width // 2, y + height // 2))
-                    screen.blit(text, text_rect)
+
+                    # Usar color de texto que contraste bien con el fondo del ladrillo
+                    # Para colores claros (amarillo, verde claro), usar texto negro con borde blanco
+                    # Para colores oscuros, usar texto blanco con borde negro
+                    brightness = (
+                        sum(self.color) / 3
+                    )  # Promedio RGB para determinar brillo
+
+                    if brightness > 150:  # Color claro
+                        text_color = BLACK
+                        outline_color = WHITE
+                    else:  # Color oscuro
+                        text_color = WHITE
+                        outline_color = BLACK
+
+                    # Crear texto con borde para mejor visibilidad
+                    text_surface = font.render(str(hits_left), True, text_color)
+                    text_rect = text_surface.get_rect(
+                        center=(x + width // 2, y + height // 2)
+                    )
+
+                    # Dibujar borde del texto
+                    for dx in [-1, 0, 1]:
+                        for dy in [-1, 0, 1]:
+                            if dx != 0 or dy != 0:
+                                outline_surface = font.render(
+                                    str(hits_left), True, outline_color
+                                )
+                                screen.blit(
+                                    outline_surface,
+                                    (text_rect.x + dx, text_rect.y + dy),
+                                )
+
+                    # Dibujar texto principal
+                    screen.blit(text_surface, text_rect)
 
     def get_rect(self):
         """
@@ -1287,7 +1338,7 @@ class PowerUp:
                 "expand": (0, 255, 100),  # Verde brillante
                 "multi_ball": (255, 255, 0),  # Amarillo brillante
                 "slow_ball": (200, 100, 255),  # Púrpura brillante
-                "fast_paddle": (255, 100, 100),  # Rojo brillante
+                "destroyer_ball": (255, 100, 100),  # Rojo brillante (destructora)
                 "laser_shoot": (255, 50, 0),  # Naranja brillante (láser)
             }
             # Obtener color para este tipo de power-up
@@ -1318,7 +1369,7 @@ class PowerUp:
                 "expand": "E",  # E de Expand (expandir)
                 "multi_ball": "M",  # M de Multi-ball (múltiples pelotas)
                 "slow_ball": "S",  # S de Slow (lento)
-                "fast_paddle": "F",  # F de Fast (rápido)
+                "destroyer_ball": "D",  # D de Destroyer (destructor)
                 "laser_shoot": "L",  # L de Laser (láser)
             }
 
@@ -1487,6 +1538,11 @@ class Game:
         # Inicializar el juego
         self.reset_game()
 
+        # Capturar el mouse al inicio
+        pygame.mouse.set_visible(False)
+        pygame.event.set_grab(True)
+        self.mouse_captured = True
+
     def load_high_score(self):
         """
         Carga la puntuación máxima desde un archivo.
@@ -1632,7 +1688,14 @@ class Game:
                         self.reset_game()
                         self.game_state = "playing"
                 elif event.key == pygame.K_ESCAPE:
-                    return False
+                    if self.mouse_captured:
+                        pygame.event.set_grab(False)
+                        pygame.mouse.set_visible(True)
+                        self.mouse_captured = False
+                    else:
+                        pygame.event.set_grab(True)
+                        pygame.mouse.set_visible(False)
+                        self.mouse_captured = True
                 elif event.key == pygame.K_b:  # Tecla B para agregar pelota
                     if self.game_state == "playing" and len(self.balls) < 5:
                         # Crear nueva pelota en posición aleatoria segura
@@ -1736,9 +1799,17 @@ class Game:
                             ball.last_hit_brick = brick
 
                             # Procesar el hit al ladrillo
-                            brick_destroyed = brick.hit()
-                            ball.bounce_y()
-                            self.screen_shake = 5
+                            if ball.destroyer_mode:
+                                # En modo destructor, destruir ladrillo inmediatamente
+                                brick.destroyed = True
+                                brick_destroyed = True
+                                ball.bounce_y()
+                                self.screen_shake = 8  # Más sacudida para efecto visual
+                            else:
+                                # Comportamiento normal
+                                brick_destroyed = brick.hit()
+                                ball.bounce_y()
+                                self.screen_shake = 5
 
                             # Efectos de partículas
                             self.add_particles(
@@ -1752,16 +1823,16 @@ class Game:
                             if brick_destroyed:
                                 self.score += brick.points
 
-                                # Posibilidad de generar power-up (aumentada para más diversión)
+                                # Posibilidad de generar power-up (reducida)
                                 if (
-                                    random.random() < 0.35
-                                ):  # 35% de probabilidad (antes era 15%)
+                                    random.random() < 0.15
+                                ):  # 15% de probabilidad (reducida desde 35%)
                                     power_types = [
                                         "expand",
                                         "multi_ball",
                                         "slow_ball",
-                                        "fast_paddle",
-                                        "laser_shoot",  # Nuevo power-up de disparo
+                                        "destroyer_ball",  # Nuevo power-up bola destructora
+                                        "laser_shoot",  # Power-up de disparo
                                     ]
                                     power_type = random.choice(power_types)
                                     power_up = PowerUp(
@@ -1835,12 +1906,12 @@ class Game:
                         )
 
                         # Posibilidad de generar power-up
-                        if random.random() < 0.35:
+                        if random.random() < 0.15:
                             power_types = [
                                 "expand",
                                 "multi_ball",
                                 "slow_ball",
-                                "fast_paddle",
+                                "destroyer_ball",
                                 "laser_shoot",
                             ]
                             power_type = random.choice(power_types)
@@ -1894,8 +1965,11 @@ class Game:
                         factor = new_speed / current_speed
                         ball.speed_x *= factor
                         ball.speed_y *= factor
-        elif power_type == "fast_paddle":
-            self.paddle.speed = min(15, self.paddle.speed + 3)
+        elif power_type == "destroyer_ball":
+            # Activar modo destructor para todas las pelotas por 10 segundos
+            for ball in self.balls:
+                ball.destroyer_mode = True
+                ball.destroyer_timer = 2000  # 20 segundos a 60 FPS
         elif power_type == "laser_shoot":
             self.paddle.activate_laser()
 
