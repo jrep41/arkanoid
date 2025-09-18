@@ -100,7 +100,8 @@ class Paddle:
     def move_left(self):
         """
         Mueve la paleta hacia la izquierda.
-        Incluye verificación para no salirse del borde izquierdo de la pantalla.
+        Incluye verificación para no salirse
+        del borde izquierdo de la pantalla.
         """
         # Solo mover si no estamos en el borde izquierdo (x > 0)
         if self.x > 0:
@@ -109,7 +110,8 @@ class Paddle:
     def move_right(self):
         """
         Mueve la paleta hacia la derecha.
-        Incluye verificación para no salirse del borde derecho de la pantalla.
+        Incluye verificación para no salirse
+        del borde derecho de la pantalla.
         """
         # Solo mover si no estamos en el borde derecho
         # (posición + ancho) debe ser menor que el ancho total de la ventana
