@@ -502,6 +502,9 @@ class Game:
             "menu"  # Posibles valores: 'menu', 'playing', 'game_over', 'victory'
         )
 
+        # Estado de pausa
+        self.paused = False  # Indica si el juego está pausado
+
         # Inicializar el juego
         self.reset_game()
 
@@ -578,15 +581,18 @@ class Game:
                         self.game_state = "playing"
                 elif event.key == pygame.K_ESCAPE:  # Tecla Escape
                     return False  # Salir del juego
+                elif event.key == pygame.K_p:  # Tecla P para pausar/reanudar
+                    if self.game_state == "playing":
+                        self.paused = not self.paused  # Alternar estado de pausa
         return True  # Continuar ejecutando
 
     def update(self):
         """
         Actualiza toda la lógica del juego cada frame.
-        Solo actualiza cuando estamos en estado 'playing'.
+        Solo actualiza cuando estamos en estado 'playing' y no pausado.
         """
-        if self.game_state != "playing":
-            return  # No actualizar si no estamos jugando
+        if self.game_state != "playing" or self.paused:
+            return  # No actualizar si no estamos jugando o estamos pausados
 
         # ==========================================
         # CONTROL DE LA PALETA
@@ -756,6 +762,15 @@ class Game:
         )
         self.screen.blit(controls, controls_rect)
 
+        # Información sobre pausa
+        pause_info = self.small_font.render(
+            "P: Pausar/Reanudar juego", True, WHITE
+        )
+        pause_rect = pause_info.get_rect(
+            center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 80)
+        )
+        self.screen.blit(pause_info, pause_rect)
+
     def draw_game(self):
         """
         Dibuja todos los elementos durante el juego activo.
@@ -789,6 +804,26 @@ class Game:
         # Mostrar nivel actual
         level_text = self.small_font.render(f"Nivel: {self.level}", True, WHITE)
         self.screen.blit(level_text, (WINDOW_WIDTH - 100, 10))
+
+        # ==========================================
+        # MENSAJE DE PAUSA
+        # ==========================================
+        if self.paused:
+            # Fondo semi-transparente para el mensaje de pausa
+            pause_overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+            pause_overlay.set_alpha(128)  # Semi-transparente
+            pause_overlay.fill(BLACK)
+            self.screen.blit(pause_overlay, (0, 0))
+
+            # Mensaje de pausa
+            pause_text = self.font.render("JUEGO PAUSADO", True, WHITE)
+            pause_rect = pause_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 30))
+            self.screen.blit(pause_text, pause_rect)
+
+            # Instrucción para reanudar
+            resume_text = self.small_font.render("Presiona P para reanudar", True, WHITE)
+            resume_rect = resume_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 30))
+            self.screen.blit(resume_text, resume_rect)
 
     def draw_game_over(self):
         """
