@@ -45,6 +45,7 @@ BRICK_COLS = 10  # Número de columnas de ladrillos
 # Velocidades del juego (píxeles por frame)
 PADDLE_SPEED = 8  # Qué tan rápido se mueve la paleta
 BALL_SPEED = 3  # Velocidad inicial de la pelota (reducida para facilitar el juego)
+INITIAL_BALL_SPEED = 3  # Velocidad inicial constante para resets
 MIN_BALL_SPEED = 2  # Velocidad mínima de la pelota (límite para slow_ball)
 
 # ==========================================
@@ -701,6 +702,8 @@ class Paddle:
         Activa el power-up de disparo láser.
         Permite a la paleta disparar proyectiles por un tiempo limitado.
         """
+        # activar láser si pulsamos la tecla l
+        
         self.laser_active = True
         # 2000 frames = 20 segundos a 60 FPS (reducido)
         self.laser_timer = 2000
@@ -1525,6 +1528,18 @@ class Game:
         self.particles = []  # Lista de partículas para efectos visuales
         self.screen_shake = 0  # Contador para efecto de temblor de pantalla
 
+        # Estado de pausa
+        self.paused = False  # Indica si el juego está pausado
+
+        # Power-ups activos (tipo -> tiempo restante en frames)
+        self.active_power_ups = {
+            "expand": 0,
+            "multi_ball": 0,
+            "slow_ball": 0,
+            "destroyer_ball": 0,
+            "laser_shoot": 0
+        }
+
         # Control del juego
         self.mouse_control = True  # Control con ratón habilitado por defecto
         self.waiting_for_ball_release = False  # Si estamos esperando liberar la pelota
@@ -1585,6 +1600,26 @@ class Game:
         self.power_ups = []  # Lista vacía de power-ups
         self.particles = []  # Lista vacía de partículas
         self.lasers = []  # Lista vacía de láser
+
+        # Resetear power-ups activos
+        self.active_power_ups = {
+            "expand": 0,
+            "multi_ball": 0,
+            "slow_ball": 0,
+            "destroyer_ball": 0,
+            "laser_shoot": 0
+        }
+
+        # Resetear paleta a estado normal
+        self.paddle.width = PADDLE_WIDTH  # Tamaño normal
+        self.paddle.expand_timer = 0  # Sin expansión
+        self.paddle.laser_active = False  # Sin láser
+        self.paddle.laser_timer = 0  # Sin timer de láser
+
+        # Resetear estado de pelotas
+        for ball in self.balls:
+            ball.destroyer_mode = False  # Desactivar modo destructor
+            ball.destroyer_timer = 0  # Sin timer de destructor
 
         # Crear la estructura de ladrillos para el nivel
         self.create_bricks()
@@ -1659,6 +1694,7 @@ class Game:
         Retorna:
         - bool: False si el usuario quiere salir del juego, True si continúa
         """
+        global BALL_SPEED  # Declarar global para poder modificar la velocidad de la pelota
         # Procesar todos los eventos en la cola
         for event in pygame.event.get():
             if event.type == pygame.QUIT:  # Usuario cerró la ventana
@@ -1678,12 +1714,12 @@ class Game:
                         self.score = 0
                         self.lives = 10  # Reiniciar con 10 vidas
                         self.level = 1
+                        BALL_SPEED = INITIAL_BALL_SPEED  # Resetear velocidad de pelota
                         self.reset_game()
                         self.game_state = "playing"
                     elif self.game_state == "victory":
                         self.level += 1
                         # Aumentar dificultad gradualmente
-                        global BALL_SPEED
                         BALL_SPEED += 0.05  # Incremento muy suave de velocidad
                         self.reset_game()
                         self.game_state = "playing"
@@ -1707,9 +1743,31 @@ class Game:
                         angle = random.uniform(-math.pi / 3, math.pi / 3)
                         new_ball.speed_x = BALL_SPEED * math.sin(angle)
                         new_ball.speed_y = -BALL_SPEED * math.cos(angle)
+                        # Si destroyer_ball está activo, aplicar modo destructor a la nueva pelota
+                        if self.active_power_ups.get("destroyer_ball", 0) > 0:
+                            new_ball.destroyer_mode = True
+                            new_ball.destroyer_timer = self.active_power_ups["destroyer_ball"]
                         self.balls.append(new_ball)
                         # Efectos visuales
                         self.add_particles(new_ball.x, new_ball.y, WHITE, 8)
+                elif event.key == pygame.K_p:  # Tecla P para pausar/reanudar
+                    if self.game_state == "playing":
+                        self.paused = not self.paused  # Alternar estado de pausa
+                elif event.key == pygame.K_l:  # Tecla L para activar láser temporal
+                    if self.game_state == "playing":
+                        self.paddle.activate_laser()  # Activar láser por tiempo limitado
+                elif event.key == pygame.K_e:  # Tecla E -> power-up expand
+                    if self.game_state == "playing":
+                        self.apply_power_up("expand")
+                elif event.key == pygame.K_m:  # Tecla M -> power-up multi_ball
+                    if self.game_state == "playing":
+                        self.apply_power_up("multi_ball")
+                elif event.key == pygame.K_s:  # Tecla S -> power-up slow_ball
+                    if self.game_state == "playing":
+                        self.apply_power_up("slow_ball")
+                elif event.key == pygame.K_d:  # Tecla D -> power-up destroyer_ball
+                    if self.game_state == "playing":
+                        self.apply_power_up("destroyer_ball")
             elif event.type == pygame.MOUSEBUTTONDOWN:  # Usuario hizo clic
                 if event.button == 1:  # Clic izquierdo
                     if self.game_state == "playing":
@@ -1728,7 +1786,8 @@ class Game:
         return True
 
     def update(self):
-        if self.game_state != "playing":
+        # No actualizar lógica del juego si no estamos jugando o si está pausado
+        if self.game_state != "playing" or (self.game_state == "playing" and self.paused):
             return
 
         # Actualizar posición de la paleta con el ratón
@@ -1934,44 +1993,82 @@ class Game:
         if self.screen_shake > 0:
             self.screen_shake -= 1
 
+        # Decrementar timers de power-ups activos
+        for power_type in self.active_power_ups:
+            if self.active_power_ups[power_type] > 0:
+                self.active_power_ups[power_type] -= 1
+
+        # Sincronizar velocidades de todas las pelotas cada cierto tiempo
+        if pygame.time.get_ticks() % 60 == 0:  # Cada segundo aproximadamente
+            self.sync_ball_speeds()
+
         # Verificar victoria
         if all(brick.destroyed for brick in self.bricks):
             self.game_state = "victory"
 
+    def sync_ball_speeds(self):
+        """
+        Sincroniza las velocidades de todas las pelotas para que tengan la misma velocidad.
+        Usa la velocidad de la primera pelota como referencia.
+        """
+        if len(self.balls) > 1:
+            # Usar la velocidad de la primera pelota como referencia
+            reference_speed = math.sqrt(self.balls[0].speed_x**2 + self.balls[0].speed_y**2)
+
+            for ball in self.balls[1:]:  # Empezar desde la segunda pelota
+                current_speed = math.sqrt(ball.speed_x**2 + ball.speed_y**2)
+                if current_speed > 0 and abs(current_speed - reference_speed) > 0.1:
+                    # Ajustar velocidad si hay diferencia significativa (>0.1 píxeles/frame)
+                    factor = reference_speed / current_speed
+                    ball.speed_x *= factor
+                    ball.speed_y *= factor
+
     def apply_power_up(self, power_type):
         if power_type == "expand":
             self.paddle.expand()
+            self.active_power_ups["expand"] = 600  # 10 segundos
         elif power_type == "multi_ball":
-            if len(self.balls) < 5:  # Máximo 5 pelotas
+            if len(self.balls) > 0 and len(self.balls) < 5:  # Verificar que hay pelotas y no exceder máximo
                 for _ in range(2):
                     new_ball = Ball(self.balls[0].x, self.balls[0].y)
                     angle = random.uniform(-math.pi / 4, math.pi / 4)
                     speed = BALL_SPEED
                     new_ball.speed_x = speed * math.sin(angle)
                     new_ball.speed_y = -speed * math.cos(angle)
+                    # Si destroyer_ball está activo, aplicar modo destructor a la nueva pelota
+                    if self.active_power_ups.get("destroyer_ball", 0) > 0:
+                        new_ball.destroyer_mode = True
+                        new_ball.destroyer_timer = self.active_power_ups["destroyer_ball"]
                     self.balls.append(new_ball)
+            self.active_power_ups["multi_ball"] = 1800  # 30 segundos (tiempo arbitrario)
         elif power_type == "slow_ball":
-            for ball in self.balls:
-                # Calcular velocidad actual
-                current_speed = math.sqrt(ball.speed_x**2 + ball.speed_y**2)
+            # Calcular la velocidad promedio de todas las pelotas para mantener consistencia
+            if self.balls:
+                total_speed = 0
+                for ball in self.balls:
+                    ball_speed = math.sqrt(ball.speed_x**2 + ball.speed_y**2)
+                    total_speed += ball_speed
+                avg_speed = total_speed / len(self.balls)
 
-                # Solo aplicar relentización si la velocidad es mayor al mínimo
-                if current_speed > MIN_BALL_SPEED:
-                    # Calcular nueva velocidad con límite mínimo
-                    new_speed = max(current_speed * 0.7, MIN_BALL_SPEED)
+                # Aplicar relentización manteniendo la dirección
+                new_speed = max(avg_speed * 0.7, MIN_BALL_SPEED)
 
-                    # Mantener la dirección pero ajustar la magnitud
-                    if current_speed > 0:  # Evitar división por cero
+                for ball in self.balls:
+                    current_speed = math.sqrt(ball.speed_x**2 + ball.speed_y**2)
+                    if current_speed > 0:  # Evitar división por cero si la pelota está quieta
                         factor = new_speed / current_speed
                         ball.speed_x *= factor
                         ball.speed_y *= factor
+            self.active_power_ups["slow_ball"] = 1800  # 30 segundos (tiempo arbitrario)
         elif power_type == "destroyer_ball":
             # Activar modo destructor para todas las pelotas por 10 segundos
             for ball in self.balls:
                 ball.destroyer_mode = True
                 ball.destroyer_timer = 2000  # 20 segundos a 60 FPS
+            self.active_power_ups["destroyer_ball"] = 2000  # 20 segundos
         elif power_type == "laser_shoot":
             self.paddle.activate_laser()
+            self.active_power_ups["laser_shoot"] = 2000  # 20 segundos
 
     def draw_background(self):
         self.screen.fill(BLACK)
@@ -2023,6 +2120,12 @@ class Game:
             "Con láser activo: ESPACIO o CLIC dispara",
             "Mantén CLIC IZQUIERDO para disparo continuo",
             "Presiona B para agregar pelota extra",
+            "Presiona P para pausar/reanudar el juego",
+            "Presiona L para activar láser temporalmente",
+            "E: Expandir paleta (expand)",
+            "M: Multiplicar pelotas (multi_ball)",
+            "S: Ralentizar pelotas (slow_ball)",
+            "D: Modo destructor para pelotas (destroyer_ball)",
             "Recoge power-ups para obtener ventajas",
             "36 niveles originales con patrones únicos",
             f"Puntuación máxima: {self.high_score}",
@@ -2076,6 +2179,39 @@ class Game:
         )
         self.screen.blit(high_score_text, (WINDOW_WIDTH - 120, 60))
 
+        # ==========================================
+        # MOSTRAR POWER-UPS ACTIVOS
+        # ==========================================
+        active_letters = []
+        power_colors = {
+            "expand": GREEN,
+            "multi_ball": YELLOW,
+            "slow_ball": (200, 100, 255),  # Magenta claro
+            "destroyer_ball": (255, 100, 100),  # Rojo claro
+            "laser_shoot": (255, 50, 0)  # Rojo anaranjado
+        }
+
+        for power_type, timer in self.active_power_ups.items():
+            if timer > 0:
+                letter = power_type[0].upper()  # Primera letra en mayúscula
+                active_letters.append((letter, power_colors.get(power_type, WHITE)))
+
+        # Dibujar letras de power-ups activos en la parte superior central
+        if active_letters:
+            start_x = WINDOW_WIDTH // 2 - (len(active_letters) * 15) // 2  # Centrar
+            for i, (letter, color) in enumerate(active_letters):
+                letter_text = self.font.render(letter, True, color)
+                self.screen.blit(letter_text, (start_x + i * 30, 10))
+
+        # ==========================================
+        # MOSTRAR VELOCIDAD DE LAS PELOTAS
+        # ==========================================
+        if self.balls and not self.waiting_for_ball_release:
+            # Calcular velocidad de la primera pelota (todas deberían tener la misma)
+            ball_speed = math.sqrt(self.balls[0].speed_x**2 + self.balls[0].speed_y**2)
+            speed_text = self.small_font.render(f"Velocidad: {ball_speed:.1f}", True, CYAN)
+            self.screen.blit(speed_text, (WINDOW_WIDTH // 2 - 80, 40))
+
         # Indicador visual para pelota lista para lanzar
         if self.waiting_for_ball_release:
             # Texto parpadeante
@@ -2099,6 +2235,26 @@ class Game:
                         (ball.x, ball.y - 15),
                     ]
                     pygame.draw.polygon(self.screen, arrow_color, arrow_points)
+
+        # ==========================================
+        # MENSAJE DE PAUSA
+        # ==========================================
+        if self.paused and self.game_state == "playing":
+            # Fondo semi-transparente para el mensaje de pausa
+            pause_overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+            pause_overlay.set_alpha(128)  # Semi-transparente
+            pause_overlay.fill(BLACK)
+            self.screen.blit(pause_overlay, (0, 0))
+
+            # Mensaje de pausa
+            pause_text = self.font.render("JUEGO PAUSADO", True, WHITE)
+            pause_rect = pause_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 30))
+            self.screen.blit(pause_text, pause_rect)
+
+            # Instrucción para reanudar
+            resume_text = self.small_font.render("Presiona P para reanudar", True, WHITE)
+            resume_rect = resume_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 30))
+            self.screen.blit(resume_text, resume_rect)
 
     def draw_game_over(self):
         game_over = self.big_font.render("GAME OVER", True, RED)
