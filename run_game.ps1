@@ -8,7 +8,7 @@ Write-Host ""
 
 $choice = Read-Host "Selecciona una versión (1 o 2)"
 
-$pythonExe = "C:/Users/joser/source/repos/arkanoid/.venv/Scripts/python.exe"
+$pythonExe = "$PSScriptRoot\.venv\Scripts\python.exe"
 
 switch ($choice) {
     "1" {

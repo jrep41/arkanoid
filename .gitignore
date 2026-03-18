@@ -1,4 +1,25 @@
 
+# Ignore vscode AI rules
+.github/instructions/codacy.instructions.md
 
-#Ignore vscode AI rules
-.github\instructions\codacy.instructions.md
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+.mypy_cache/
+.pytest_cache/
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# OS specific
+Thumbs.db
+.DS_Store
+
+# Project Specific
+high_score.txt

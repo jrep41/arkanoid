@@ -45,6 +45,7 @@ Un juego completo de Arkanoid desarrollado en Python usando pygame con caracter√
 
 1. Clona o descarga este repositorio
 2. Instala pygame:
+
    ```bash
    pip install pygame
    ```
