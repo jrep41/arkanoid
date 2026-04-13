@@ -14,6 +14,7 @@ import sys  # Para funciones del sistema como salir del programa
 import math  # Para cálculos matemáticos (ángulos, trigonometría)
 import random  # Para generar números aleatorios
 import os  # Para operaciones con archivos y sistema operativo
+import sounds  # Módulo de efectos de sonido sintéticos
 
 # Inicializar Pygame - SIEMPRE necesario antes de usar pygame
 pygame.init()  # Inicializa todos los módulos de pygame
@@ -882,6 +883,9 @@ class Ball:
         self.collision_cooldown = 0  # Frames restantes de cooldown
         self.last_hit_brick = None  # Último ladrillo golpeado
 
+        # Referencia al gestor de sonidos (se asigna al crear la pelota)
+        self.game_sound_manager = None
+
     def release(self, angle=None):
         """
         Libera la pelota de la paleta con un ángulo específico.
@@ -1015,6 +1019,10 @@ class Ball:
             self.speed_y = -abs(
                 speed * math.cos(angle)
             )  # Componente vertical (hacia arriba)
+
+            # Reproducir sonido de rebote en paleta
+            if self.game_sound_manager:
+                self.game_sound_manager.play('paddle_hit')
 
             return True  # Hubo colisión
         return False  # No hubo colisión
@@ -1656,6 +1664,9 @@ class Game:
         self.mouse_control = True  # Control con ratón habilitado por defecto
         self.waiting_for_ball_release = False  # Si estamos esperando liberar la pelota
 
+        # Sistema de sonido
+        self.sound_manager = sounds.get_sound_manager()
+
         # Crear estrellas de fondo aleatoriamente
         self.background_stars = [
             (random.randint(0, WINDOW_WIDTH), random.randint(0, WINDOW_HEIGHT))
@@ -1705,6 +1716,7 @@ class Game:
         ball_x = self.paddle.x + self.paddle.width // 2
         ball_y = self.paddle.y - BALL_SIZE // 2 - 2
         self.balls = [Ball(ball_x, ball_y, stuck_to_paddle=True)]
+        self.balls[0].game_sound_manager = self.sound_manager
         self.waiting_for_ball_release = True
 
         # Limpiar listas de objetos
@@ -1743,6 +1755,7 @@ class Game:
         ball_x = self.paddle.x + self.paddle.width // 2
         ball_y = self.paddle.y - BALL_SIZE // 2 - 2
         new_ball = Ball(ball_x, ball_y, stuck_to_paddle=True)
+        new_ball.game_sound_manager = self.sound_manager
         self.balls = [new_ball]
         self.waiting_for_ball_release = True
 
@@ -1815,6 +1828,8 @@ class Game:
                 if event.key == pygame.K_SPACE:  # Tecla Espacio
                     if self.game_state == "menu":
                         self.game_state = "playing"  # Empezar juego
+                        # Reproducir sonido de inicio
+                        self.sound_manager.play('power_up')
                     elif self.game_state == "playing" and self.waiting_for_ball_release:
                         # Liberar la pelota pegada
                         for ball in self.balls:
@@ -1831,6 +1846,8 @@ class Game:
                         self.game_state = "playing"
                     elif self.game_state == "victory":
                         self.level += 1
+                        # Reproducir sonido de nivel completado
+                        self.sound_manager.play('level_complete')
                         # Aumentar dificultad gradualmente
                         BALL_SPEED += 0.05  # Incremento muy suave de velocidad
                         self.reset_game()
@@ -1855,6 +1872,8 @@ class Game:
                         angle = random.uniform(-math.pi / 3, math.pi / 3)
                         new_ball.speed_x = BALL_SPEED * math.sin(angle)
                         new_ball.speed_y = -BALL_SPEED * math.cos(angle)
+                        # Asignar referencia del gestor de sonidos
+                        new_ball.game_sound_manager = self.sound_manager
                         # Si destroyer_ball está activo, aplicar modo destructor a la nueva pelota
                         if self.active_power_ups.get("destroyer_ball", 0) > 0:
                             new_ball.destroyer_mode = True
@@ -1929,6 +1948,8 @@ class Game:
             new_lasers = self.paddle.shoot()
             if new_lasers:
                 self.lasers.extend(new_lasers)  # Agregar todos los láser a la lista
+                # Reproducir sonido de láser
+                self.sound_manager.play('laser')
 
         # Disparar láser con ratón (disparo continuo)
         mouse_buttons = pygame.mouse.get_pressed()
@@ -1993,7 +2014,8 @@ class Game:
                             # Solo dar puntos y generar power-up si el ladrillo fue destruido
                             if brick_destroyed:
                                 self.score += brick.points
-
+                                # Reproducir sonido de destrucción
+                                self.sound_manager.play('brick_destroy')
                                 # Posibilidad de generar power-up (reducida)
                                 if (
                                     random.random() < 0.15
@@ -2010,6 +2032,9 @@ class Game:
                                         brick.x + brick.width // 2, brick.y, power_type
                                     )
                                     self.power_ups.append(power_up)
+                            else:
+                                # Sonido de rebote en ladrillo
+                                self.sound_manager.play('brick_hit')
                         break
 
         # Remover pelotas que salieron
@@ -2020,11 +2045,15 @@ class Game:
         if not self.balls:
             self.lives -= 1
             self.screen_shake = 15
+            # Reproducir sonido de perder vida
+            self.sound_manager.play('life_lost')
             if self.lives <= 0:
                 if self.score > self.high_score:
                     self.high_score = self.score
                     self.save_high_score()
                 self.game_state = "game_over"
+                # Reproducir sonido de game over
+                self.sound_manager.play('game_over')
             else:
                 # Crear nueva pelota pegada a la paleta
                 self.create_new_ball()
@@ -2043,6 +2072,8 @@ class Game:
                 self.apply_power_up(power_up.power_type)
                 power_ups_to_remove.append(i)
                 self.add_particles(power_up.x, power_up.y, GREEN, 8)
+                # Reproducir sonido de power-up
+                self.sound_manager.play('power_up')
 
         for i in reversed(power_ups_to_remove):
             self.power_ups.pop(i)
@@ -2067,6 +2098,8 @@ class Game:
 
                         # Añadir puntos
                         self.score += brick.points
+                        # Reproducir sonido de destrucción por láser
+                        self.sound_manager.play('brick_destroy')
 
                         # Efectos de partículas
                         self.add_particles(
@@ -2090,6 +2123,9 @@ class Game:
                                 brick.x + brick.width // 2, brick.y, power_type
                             )
                             self.power_ups.append(power_up)
+                    else:
+                        # Sonido de impacto de láser en ladrillo
+                        self.sound_manager.play('brick_hit')
                     break
 
         # Remover láser destruidos
@@ -2117,6 +2153,8 @@ class Game:
         # Verificar victoria
         if all(brick.destroyed for brick in self.bricks):
             self.game_state = "victory"
+            # Reproducir sonido de victoria
+            self.sound_manager.play('victory')
 
     def sync_ball_speeds(self):
         """
@@ -2152,7 +2190,11 @@ class Game:
                         new_ball.destroyer_mode = True
                         new_ball.destroyer_timer = self.active_power_ups["destroyer_ball"]
                     self.balls.append(new_ball)
+                    # Asignar referencia del gestor de sonidos
+                    new_ball.game_sound_manager = self.sound_manager
             self.active_power_ups["multi_ball"] = 1800  # 30 segundos (tiempo arbitrario)
+            # Reproducir sonido específico de multi_ball
+            self.sound_manager.play('multi_ball')
         elif power_type == "slow_ball":
             # Calcular la velocidad promedio de todas las pelotas para mantener consistencia
             if self.balls:
