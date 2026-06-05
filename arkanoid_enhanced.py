@@ -884,7 +884,7 @@ class Ball:
         self.last_hit_brick = None  # Último ladrillo golpeado
 
         # Referencia al gestor de sonidos (se asigna al crear la pelota)
-        self.game_sound_manager = None
+        self.game_sound_manager: 'sounds.SoundManager | None' = None
 
     def release(self, angle=None):
         """
