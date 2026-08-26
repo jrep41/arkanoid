@@ -11,10 +11,11 @@ Fecha: Julio 2025
 # ==========================================
 # IMPORTACIÓN DE LIBRERÍAS
 # ==========================================
-import pygame  # Librería principal para crear juegos en Python
-import sys  # Para funciones del sistema como salir del programa
 import math  # Para cálculos matemáticos (ángulos, trigonometría)
 import random  # Para generar números aleatorios
+import sys  # Para funciones del sistema como salir del programa
+
+import pygame  # Librería principal para crear juegos en Python
 
 # ==========================================
 # INICIALIZACIÓN DE PYGAME
@@ -210,9 +211,7 @@ class Ball:
             self.bounce_y()  # Rebotar verticalmente
 
         # Verificar si la pelota salió por el fondo (game over)
-        if self.y >= WINDOW_HEIGHT:
-            return True  # La pelota se perdió
-        return False  # La pelota sigue en juego
+        return self.y >= WINDOW_HEIGHT  # La pelota se perdió si salió por el fondo
 
     def check_paddle_collision(self, paddle):
         """
@@ -563,27 +562,45 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:  # Usuario cerró la ventana
                 return False
-            elif event.type == pygame.KEYDOWN:  # Usuario presionó una tecla
-                if event.key == pygame.K_SPACE:  # Tecla Espacio
-                    if self.game_state == "menu":
-                        self.game_state = "playing"  # Comenzar el juego
-                    elif self.game_state == "game_over":
-                        # Reiniciar completamente el juego
-                        self.score = 0
-                        self.lives = 3
-                        self.level = 1
-                        self.reset_game()
-                        self.game_state = "playing"
-                    elif self.game_state == "victory":
-                        # Avanzar al siguiente nivel
-                        self.level += 1
-                        self.reset_game()
-                        self.game_state = "playing"
-                elif event.key == pygame.K_ESCAPE:  # Tecla Escape
-                    return False  # Salir del juego
-                elif event.key == pygame.K_p:  # Tecla P para pausar/reanudar
-                    if self.game_state == "playing":
-                        self.paused = not self.paused  # Alternar estado de pausa
+
+            elif (
+                event.type == pygame.KEYDOWN
+                and event.key == pygame.K_SPACE
+                and self.game_state == "menu"
+            ):
+                self.game_state = "playing"  # Comenzar el juego
+
+            elif (
+                event.type == pygame.KEYDOWN
+                and event.key == pygame.K_SPACE
+                and self.game_state == "game_over"
+            ):
+                self.score = 0
+                self.lives = 3
+                self.level = 1
+                self.reset_game()
+                self.game_state = "playing"
+
+            elif (
+                event.type == pygame.KEYDOWN
+                and event.key == pygame.K_SPACE
+                and self.game_state == "victory"
+            ):
+                self.level += 1
+                self.reset_game()
+                self.game_state = "playing"
+
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                return False  # Salir del juego
+
+            elif (
+                event.type == pygame.KEYDOWN
+                and event.key == pygame.K_p
+                and self.game_state == "playing"
+                and not self.paused
+            ):
+                self.paused = not self.paused  # Alternar estado de pausa
+
         return True  # Continuar ejecutando
 
     def update(self):
@@ -763,9 +780,7 @@ class Game:
         self.screen.blit(controls, controls_rect)
 
         # Información sobre pausa
-        pause_info = self.small_font.render(
-            "P: Pausar/Reanudar juego", True, WHITE
-        )
+        pause_info = self.small_font.render("P: Pausar/Reanudar juego", True, WHITE)
         pause_rect = pause_info.get_rect(
             center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 80)
         )
@@ -817,12 +832,18 @@ class Game:
 
             # Mensaje de pausa
             pause_text = self.font.render("JUEGO PAUSADO", True, WHITE)
-            pause_rect = pause_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 30))
+            pause_rect = pause_text.get_rect(
+                center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 30)
+            )
             self.screen.blit(pause_text, pause_rect)
 
             # Instrucción para reanudar
-            resume_text = self.small_font.render("Presiona P para reanudar", True, WHITE)
-            resume_rect = resume_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 30))
+            resume_text = self.small_font.render(
+                "Presiona P para reanudar", True, WHITE
+            )
+            resume_rect = resume_text.get_rect(
+                center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 30)
+            )
             self.screen.blit(resume_text, resume_rect)
 
     def draw_game_over(self):

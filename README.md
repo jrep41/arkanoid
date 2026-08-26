@@ -47,7 +47,7 @@ Un juego completo de Arkanoid desarrollado en Python usando pygame con caracter�
 2. Instala pygame:
 
    ```bash
-   pip install pygame
+   pip install -r requirements.txt
    ```
 
 ## 🎮 Cómo Jugar

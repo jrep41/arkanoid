@@ -54,7 +54,7 @@ powershell -ExecutionPolicy Bypass -File run_game.ps1
 
 4. Instala pygame:
    ```bash
-   pip install pygame
+   pip install -r requirements.txt
    ```
 5. Ejecuta el juego:
    ```bash
