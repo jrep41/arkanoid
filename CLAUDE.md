@@ -39,7 +39,7 @@ run_game.bat
 | Left click / Space | Launch ball / Fire laser |
 | Hold left click | Continuous laser fire |
 | B | Add extra ball (max 5) |
-| ESC | Toggle mouse capture |
+| ESC | Exit the game |
 | P | Pause game |
 | Space | Start/Restart/Next level |
 
@@ -129,7 +129,7 @@ Scores are saved to `high_score.txt` using simple file I/O in `load_high_score()
 
 ## Important Notes
 
-- The game captures mouse input by default (ESC to toggle)
+- Press ESC to exit the game
 - `BALL_SPEED` is a global modified during level progression
 - Ball speeds are synchronized across all balls in `sync_ball_speeds()`
 - Screen shake is managed via `screen_shake` counter in Game class

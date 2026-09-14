@@ -31,7 +31,7 @@ Un juego completo de Arkanoid desarrollado en Python usando pygame con caracter�
 
 ### **Controles Avanzados**
 
-- **Control de ratón**: Captura/liberación automática con tecla ESC
+- **Salir del juego**: Tecla ESC
 - **Cañones láser duales**: Disparo continuo con clic izquierdo sostenido
 - **Pelota pegajosa**: La pelota se adhiere a la paleta al inicio de cada vida
 - **Pelota extra**: Tecla B para agregar pelotas adicionales
@@ -65,7 +65,7 @@ Un juego completo de Arkanoid desarrollado en Python usando pygame con caracter�
    - **Clic izquierdo** o **Espacio**: Lanzar pelota / Disparar láser
    - **Mantener clic izquierdo**: Disparo láser continuo
    - **B**: Agregar pelota extra (máximo 5)
-   - **ESC**: Alternar captura del ratón
+   - **ESC**: Salir del juego
    - **Espacio**: Comenzar/Reiniciar/Siguiente nivel
 
 3. **Objetivo**:
