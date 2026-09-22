@@ -1,0 +1,141 @@
+PLR1730 [*] Replace `if` statement with `self.x = max(self.x, 0)`
+   --> arkanoid.py:136:9
+    |
+135 |           # Límite del borde izquierdo: no permitir posición menor a 0
+136 | /         if self.x < 0:
+137 | |             self.x = 0
+    | |______________________^
+138 |
+139 |           # Límite del borde derecho: no pasar del ancho de la ventana
+    |
+help: Replace with `self.x = max(self.x, 0)`
+    |
+135 |         # Límite del borde izquierdo: no permitir posición menor a 0
+    -         if self.x < 0:
+    -             self.x = 0
+136 +         self.x = max(self.x, 0)
+137 |
+    |
+
+PLR1730 [*] Replace `if` statement with `self.x = min(self.x, WINDOW_WIDTH - self.width)`
+   --> arkanoid.py:140:9
+    |
+139 |           # Límite del borde derecho: no pasar del ancho de la ventana
+140 | /         if self.x > WINDOW_WIDTH - self.width:
+141 | |             self.x = WINDOW_WIDTH - self.width
+    | |______________________________________________^
+142 |
+143 |       def draw(self, screen):
+    |
+help: Replace with `self.x = min(self.x, WINDOW_WIDTH - self.width)`
+    |
+139 |         # Límite del borde derecho: no pasar del ancho de la ventana
+    -         if self.x > WINDOW_WIDTH - self.width:
+    -             self.x = WINDOW_WIDTH - self.width
+140 +         self.x = min(self.x, WINDOW_WIDTH - self.width)
+141 |
+    |
+
+RUF046 Value being cast to `int` is already an integer
+    --> arkanoid_enhanced.py:1364:28
+     |
+1363 |     # Halo exterior pulsante (se cuantiza para no llenar la caché)
+1364 |     halo_alpha = 25 + 15 * int(round(min(1.0, max(0.0, pulse)) * 2))
+     |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1365 |     halo = make_panel_surface((width + 28, height + 24), (*color, halo_alpha), radius + 12)
+1366 |     screen.blit(halo, (x - 14, y - 12))
+     |
+help: Remove unnecessary `int` call
+
+SIM102 Use a single `if` statement instead of nested `if` statements
+    --> arkanoid_enhanced.py:2151:13
+     |
+2149 |                   ):  # Tecla D -> power-up destroyer_ball
+2150 |                       self.apply_power_up("destroyer_ball")
+2151 | /             elif (
+2152 | |                 event.type == pygame.MOUSEBUTTONDOWN
+2153 | |             ):  # Usuario hizo clic  # noqa: SIM102
+2154 | |                 if event.button == 1 and self.game_state == "playing":  # Clic izquierdo
+     | |______________________________________________________________________^
+2155 |                       # Liberar la pelota pegada si hay alguna
+2156 |                       if self.waiting_for_ball_release:
+     |
+help: Combine `if` statements using `and`
+
+RUF100 [*] Unused `noqa` directive (unused: `SIM102`)
+    --> arkanoid_enhanced.py:2153:38
+     |
+2151 |             elif (
+2152 |                 event.type == pygame.MOUSEBUTTONDOWN
+2153 |             ):  # Usuario hizo clic  # noqa: SIM102
+     |                                      ^^^^^^^^^^^^^^
+2154 |                 if event.button == 1 and self.game_state == "playing":  # Clic izquierdo
+2155 |                     # Liberar la pelota pegada si hay alguna
+     |
+help: Remove unused `noqa` directive
+     |
+2152 |                 event.type == pygame.MOUSEBUTTONDOWN
+     -             ):  # Usuario hizo clic  # noqa: SIM102
+2153 +             ):  # Usuario hizo clic
+2154 |                 if event.button == 1 and self.game_state == "playing":  # Clic izquierdo
+     |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> sounds.py:11:1
+   |
+ 9 |   """
+10 |
+11 | / import pygame
+12 | | import math
+13 | | import struct
+   | |_____________^
+14 |
+15 |   # Inicializar mixer si no está ya inicializado
+   |
+help: Organize imports
+   |
+10 |
+   - import pygame
+11 | import math
+12 | import struct
+13 |
+14 + import pygame
+15 +
+16 | # Inicializar mixer si no está ya inicializado
+   |
+
+F841 Local variable `sound_surface` is assigned to but never used
+  --> sounds.py:51:5
+   |
+50 |     # Crear superficie de sonido
+51 |     sound_surface = pygame.Surface((n_samples, 1), pygame.SRCALPHA)
+   |     ^^^^^^^^^^^^^
+52 |     pygame.mixer.init()
+53 |     sound = pygame.mixer.Sound(buffer=sound_bytes)
+   |
+help: Remove assignment to unused variable `sound_surface`
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> sounds.py:223:13
+    |
+221 |                   sound.set_volume(self.volume)
+222 |                   sound.play()
+223 | /             except Exception:
+224 | |                 pass
+    | |____________________^
+225 |
+226 |       def set_volume(self, volume):
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> sounds.py:223:20
+    |
+221 |                 sound.set_volume(self.volume)
+222 |                 sound.play()
+223 |             except Exception:
+    |                    ^^^^^^^^^
+224 |                 pass
+    |
+
+Found 9 errors.
+[*] 4 fixable with the `--fix` option (2 hidden fixes can be enabled with the `--unsafe-fixes` option).

@@ -8,9 +8,11 @@ Autor: Claude
 Fecha: Abril 2026
 """
 
-import pygame
+import logging
 import math
 import struct
+
+import pygame
 
 # Inicializar mixer si no está ya inicializado
 try:
@@ -47,8 +49,6 @@ def generate_beep(frequency, duration, volume=0.3, fadeout=50):
     # Crear array de bytes (16-bit, mono)
     sound_bytes = struct.pack(f'<{n_samples}h', *samples)
 
-    # Crear superficie de sonido
-    sound_surface = pygame.Surface((n_samples, 1), pygame.SRCALPHA)
     pygame.mixer.init()
     sound = pygame.mixer.Sound(buffer=sound_bytes)
     return sound
@@ -175,8 +175,16 @@ class SoundManager:
         """Genera todos los efectos de sonido sintéticos."""
         try:
             pygame.mixer.init(frequency=22050, size=-16, channels=1, buffer=512)
-        except pygame.error:
-            pass
+        except pygame.error as exc:
+            # Puede no haber dispositivo de audio: no debe tumbar el arranque
+            logging.getLogger(__name__).warning("No se pudo iniciar el mixer: %s", exc)
+
+        if pygame.mixer.get_init() is None:
+            # Sin mixer no hay sonido posible: degradar a modo silencio
+            logging.getLogger(__name__).warning(
+                "Audio no disponible: el juego continuara sin efectos de sonido"
+            )
+            return
 
         # Sonido al rebotar la pelota en la paleta (440 Hz, 80ms)
         self.sounds['paddle_hit'] = generate_tone(440, 80, volume=0.25)
@@ -220,8 +228,12 @@ class SoundManager:
                 sound = self.sounds[sound_name]
                 sound.set_volume(self.volume)
                 sound.play()
-            except Exception:
-                pass
+            except pygame.error as exc:
+                # Un fallo del dispositivo de audio no debe tumbar el juego,
+                # pero debe quedar registrado para poder diagnosticarlo.
+                logging.getLogger(__name__).warning(
+                    "No se pudo reproducir '%s': %s", sound_name, exc
+                )
 
     def set_volume(self, volume):
         """Ajusta el volumen general (0.0 a 1.0)."""

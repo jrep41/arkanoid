@@ -82,6 +82,14 @@ NEON_GREEN = (0, 255, 100)
 NEON_YELLOW = (255, 255, 0)
 NEON_RED = (255, 50, 50)
 
+# Paleta moderna "neón y cristal": fondos profundos, cristal translúcido y acentos
+BG_TOP = (16, 22, 46)  # Azul profundo (parte superior del fondo)
+BG_BOTTOM = (6, 8, 20)  # Casi negro (parte inferior del fondo)
+TEXT_PRIMARY = (232, 240, 255)  # Color del texto principal
+TEXT_DIM = (122, 145, 188)  # Color de etiquetas y texto secundario
+ACCENT_CYAN = (0, 214, 255)  # Acento principal (marco, botones, paleta)
+ACCENT_PINK = (255, 74, 168)  # Acento secundario (láser, alertas)
+
 # Lista de colores para los ladrillos (una por fila) - paleta clásica de Arkanoid
 BRICK_COLORS = [
     (255, 255, 255),  # Blanco
@@ -572,7 +580,7 @@ class Particle:
         self.vy = random.uniform(-6, -2)  # Entre -6 y -2 píxeles por frame
 
         self.color = color  # Color de la partícula
-        self.life = 30  # Tiempo de vida en frames (30 frames = 0.5 segundos a 60fps)
+        self.life = 30  # Tiempo de vida en frames (30 frames = 0.5 segundos a60fps)
         self.max_life = 30  # Tiempo de vida máximo (para calcular transparencia)
 
     def update(self):
@@ -592,14 +600,17 @@ class Particle:
 
     def draw(self, screen):
         """
-        Dibuja la partícula como una chispa cuadrada simple.
+        Dibuja la partícula como una chispa con halo neón que se desvanece.
         """
         if self.life > 0:
-            size = max(1, int(3 * (self.life / self.max_life)))
-            pygame.draw.rect(
+            ratio = self.life / self.max_life
+            radius = 1 + int(3 * ratio)
+            draw_glow_dot(
                 screen,
                 self.color,
-                (int(self.x), int(self.y), size, size),
+                (int(self.x), int(self.y)),
+                radius,
+                alpha=int(255 * ratio),
             )
 
 
@@ -658,7 +669,7 @@ class Paddle:
     def update(self):
         """
         Actualiza el estado de la paleta cada frame.
-        Principalmente maneja la duración de los power-ups.
+        Principalmente, maneja la duración de los power-ups.
         """
         # Si la paleta está expandida, contar hacia atrás
         if self.expand_timer > 0:
@@ -759,86 +770,61 @@ class Paddle:
 
     def draw(self, screen):
         """
-        Dibuja la paleta con el aspecto clásico Vaus de Arkanoid:
-        cuerpo plateado metálico con extremos rojos.
+        Dibuja la paleta con un aspecto moderno: cuerpo metálico redondeado
+        con acento neón cian y extremos rojos brillantes (guiño a la Vaus).
         """
-        main_color = (200, 200, 200)  # Plateado
-        laser_color = NEON_RED
-        end_cap_width = 10  # Ancho de los extremos rojos
+        x = int(self.x)
+        y = int(self.y)
+        width = int(self.width)
+        height = self.height
+        radius = max(3, height // 2)
+        end_cap_width = 14
 
-        # Cuerpo de la paleta con gradiente metálico vertical
-        for i in range(self.height):
-            ratio = i / self.height
-            # Plateado: claro arriba, oscuro abajo
-            shade = int(230 - ratio * 130)
-            color = (shade, shade, shade + 10)
-            pygame.draw.rect(screen, color, (self.x, self.y + i, self.width, 1))
+        # Sombra suave bajo la paleta para dar profundidad
+        shadow = make_panel_surface((width, height), (0, 0, 0, 120), radius)
+        screen.blit(shadow, (x + 2, y + 4))
 
-        # Contorno oscuro del cuerpo
-        pygame.draw.rect(
-            screen, (60, 60, 60), (self.x, self.y, self.width, self.height), 1
+        # Resplandor neón cian bajo la paleta
+        halo = make_panel_surface((width + 18, height + 14), (*ACCENT_CYAN, 34), radius + 7)
+        screen.blit(halo, (x - 9, y - 5))
+
+        # Cuerpo metálico con degradado vertical
+        body = make_gradient_surface((width, height), (238, 245, 255), (66, 82, 116), radius)
+        screen.blit(body, (x, y))
+
+        # Extremos rojos con degradado (identidad Vaus)
+        cap = make_gradient_surface((end_cap_width, height), (255, 102, 102), (138, 22, 34), radius)
+        screen.blit(cap, (x, y))
+        screen.blit(cap, (x + width - end_cap_width, y))
+
+        # Línea de acento neón en la parte superior central
+        strip_x = x + end_cap_width + 6
+        strip_width = max(8, width - (end_cap_width + 6) * 2)
+        pygame.draw.line(
+            screen, ACCENT_CYAN, (strip_x, y + 3), (strip_x + strip_width, y + 3), 2
+        )
+        # Brillo especular sobre el acento
+        pygame.draw.line(
+            screen,
+            (255, 255, 255),
+            (strip_x, y + 1),
+            (strip_x + strip_width, y + 1),
+            1,
         )
 
-        # Extremos rojos característicos de la Vaus
-        for cap_x in (self.x, self.x + self.width - end_cap_width):
-            for i in range(self.height):
-                ratio = i / self.height
-                r = int(255 - ratio * 100)
-                g = int(40 - ratio * 25)
-                b = int(40 - ratio * 25)
-                pygame.draw.rect(
-                    screen, (r, g, b), (cap_x, self.y + i, end_cap_width, 1)
-                )
-            # Contorno del extremo
-            pygame.draw.rect(
-                screen,
-                (100, 0, 0),
-                (cap_x, self.y, end_cap_width, self.height),
-                1,
-            )
-
-        # Línea de brillo superior
-        pygame.draw.rect(
-            screen, (240, 240, 240), (self.x + 1, self.y + 1, self.width - 2, 1)
-        )
-
-        # Dibujar cañones láser si está activo
+        # Cañones láser con resplandor pulsante
         if self.laser_active:
-            pulse = abs(math.sin(pygame.time.get_ticks() * 0.02)) * 0.3 + 0.7
-
-            # Cañón izquierdo con brillo
-            cannon_left_x = self.x + self.width // 4
-            cannon_left_y = self.y - 3
-
-            # Glow del cañón
-            pygame.draw.rect(
-                screen,
-                (int(100 * pulse), 0, 0),
-                (cannon_left_x - 4, cannon_left_y - 2, 8, 10),
-            )
-            pygame.draw.rect(
-                screen, laser_color, (cannon_left_x - 2, cannon_left_y, 4, 6)
-            )
-            # Punta brillante
-            pygame.draw.circle(
-                screen, (255, 100, 100), (cannon_left_x, cannon_left_y), 4
-            )
-
-            # Cañón derecho con brillo
-            cannon_right_x = self.x + (self.width * 3) // 4
-            cannon_right_y = self.y - 3
-
-            pygame.draw.rect(
-                screen,
-                (int(100 * pulse), 0, 0),
-                (cannon_right_x - 4, cannon_right_y - 2, 8, 10),
-            )
-            pygame.draw.rect(
-                screen, laser_color, (cannon_right_x - 2, cannon_right_y, 4, 6)
-            )
-            pygame.draw.circle(
-                screen, (255, 100, 100), (cannon_right_x, cannon_right_y), 4
-            )
+            pulse = 0.6 + 0.4 * abs(math.sin(pygame.time.get_ticks() * 0.01))
+            cannon = make_gradient_surface((6, 10), WHITE, ACCENT_PINK, radius=3)
+            for cannon_x in (x + width // 4, x + (width * 3) // 4):
+                draw_glow_dot(
+                    screen,
+                    ACCENT_PINK,
+                    (cannon_x, y - 2),
+                    int(6 + 3 * pulse),
+                    alpha=170,
+                )
+                screen.blit(cannon, (cannon_x - 3, y - 8))
 
     def get_rect(self):
         """
@@ -1041,25 +1027,32 @@ class Ball:
 
     def draw(self, screen):
         """
-        Dibuja la pelota como un cuadrado blanco clásico de Arkanoid.
+        Dibuja la pelota como una esfera luminosa con rastro de energía.
+        En modo destructor el resplandor se vuelve rojo.
         """
-        # Color de la pelota según el modo
-        if self.destroyer_mode:
-            main_color = (255, 80, 80)
-        else:
-            main_color = WHITE
+        # Color del halo y del rastro según el modo
+        glow_color = ACCENT_PINK if self.destroyer_mode else ACCENT_CYAN
 
-        # Pelota cuadrada (estilo original)
-        rect = pygame.Rect(
-            int(self.x) - self.radius,
-            int(self.y) - self.radius,
-            self.size,
-            self.size,
+        # Rastro: puntos de brillo cada vez más tenues
+        total = max(1, len(self.trail))
+        for index, (trail_x, trail_y) in enumerate(self.trail):
+            ratio = (index + 1) / total
+            draw_glow_dot(
+                screen,
+                glow_color,
+                (int(trail_x), int(trail_y)),
+                1 + int(3 * ratio),
+                alpha=int(70 * ratio),
+            )
+
+        # Halo de la pelota
+        draw_glow_dot(screen, glow_color, (int(self.x), int(self.y)), self.radius + 5, alpha=150)
+
+        # Esfera con degradado radial (superficie pre-renderizada)
+        screen.blit(
+            make_ball_sprite(self.size + 2, self.destroyer_mode),
+            (int(self.x) - self.radius - 1, int(self.y) - self.radius - 1),
         )
-        pygame.draw.rect(screen, main_color, rect)
-
-        # Borde oscuro sutil
-        pygame.draw.rect(screen, (180, 180, 180), rect, 1)
 
     def get_rect(self):
         """
@@ -1090,60 +1083,369 @@ BRICK_RESISTANCE = {
     (255, 220, 0): 2,  # Amarillo
 }
 
+# Identidad visual de cada power-up: color, símbolo y duración (en frames)
+POWER_UP_COLORS = {
+    "expand": (0, 220, 120),
+    "multi_ball": (255, 200, 40),
+    "slow_ball": (80, 160, 255),
+    "destroyer_ball": (255, 70, 90),
+    "laser_shoot": (255, 130, 40),
+}
+POWER_UP_SYMBOLS = {
+    "expand": "E",
+    "multi_ball": "M",
+    "slow_ball": "S",
+    "destroyer_ball": "D",
+    "laser_shoot": "L",
+}
+POWER_UP_DURATIONS = {
+    "expand": 600,  # 10 segundos
+    "multi_ball": 1800,  # 30 segundos
+    "slow_ball": 1800,  # 30 segundos
+    "destroyer_ball": 2000,  # 20 segundos (aprox.)
+    "laser_shoot": 2000,  # 20 segundos
+}
+
 
 # ==========================================
-# FUNCIONES DE EFECTOS DE NEON
+# SISTEMA VISUAL MODERNO (NEÓN Y CRISTAL)
 # ==========================================
+# Funciones de apoyo para el aspecto actual del juego: degradados suaves,
+# paneles de cristal translúcidos, halos neón difusos y tipografía limpia.
+# Todas las superficies caras de crear se guardan en caché para no perder
+# rendimiento (se crean una vez y se reutilizan en cada frame).
+
+# Tipografías preferidas (se usa la primera que exista en el sistema)
+PREFERRED_FONTS = [
+    "Segoe UI",
+    "Ubuntu",
+    "Noto Sans",
+    "DejaVu Sans",
+    "Verdana",
+    "Arial",
+]
+
+_font_cache = {}  # Caché de fuentes: (tamaño, negrita) -> fuente
+_gradient_cache = {}  # Caché de superficies con degradado
+_panel_cache = {}  # Caché de paneles de cristal
+_glow_cache = {}  # Caché de halos neón
+_text_cache = {}  # Caché de textos renderizados
+_ball_cache = {}  # Caché de la esfera de la pelota
+
+
+def get_font(size, bold=False):
+    """Devuelve una tipografía moderna del sistema (cacheada por tamaño)."""
+    key = (size, bold)
+    if key not in _font_cache:
+        path = None
+        for name in PREFERRED_FONTS:
+            path = pygame.font.match_font(name)
+            if path:
+                break
+        if path:
+            font = pygame.font.Font(path, size)
+        else:
+            font = pygame.font.Font(None, int(size * 1.4))
+        font.set_bold(bold)
+        _font_cache[key] = font
+    return _font_cache[key]
+
+
+def lerp_color(color_a, color_b, ratio):
+    """Mezcla dos colores RGB. ratio=0 devuelve color_a y ratio=1 color_b."""
+    ratio = max(0.0, min(1.0, ratio))
+    return tuple(int(a + (b - a) * ratio) for a, b in zip(color_a, color_b))
+
+
+def shade(color, factor):
+    """Aclara (factor > 1) u oscurece (factor < 1) un color RGB."""
+    return tuple(max(0, min(255, int(c * factor))) for c in color)
+
+
+def make_gradient_surface(size, top_color, bottom_color, radius=0, gloss=True):
+    """
+    Crea una superficie con degradado vertical y esquinas redondeadas.
+    Se guarda en caché porque recorrer los píxeles es costoso.
+    """
+    key = (size, top_color, bottom_color, radius, gloss)
+    if key not in _gradient_cache:
+        width, height = size
+        surf = pygame.Surface((width, height), pygame.SRCALPHA)
+
+        # Degradado vertical: el color superior se transforma en el inferior
+        for i in range(height):
+            row_color = lerp_color(top_color, bottom_color, i / max(1, height - 1))
+            pygame.draw.line(surf, row_color, (0, i), (width, i))
+
+        # Recorte de esquinas redondeadas (multiplicando el canal alfa)
+        if radius > 0:
+            mask = pygame.Surface((width, height), pygame.SRCALPHA)
+            pygame.draw.rect(
+                mask, (255, 255, 255, 255), (0, 0, width, height), border_radius=radius
+            )
+            surf.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+        # Línea de brillo superior (efecto cristal)
+        if gloss and height > 4 and width > 2 * radius:
+            gloss_color = lerp_color(top_color, (255, 255, 255), 0.5)
+            pygame.draw.line(surf, gloss_color, (radius, 1), (width - radius - 1, 1))
+
+        _gradient_cache[key] = surf
+    return _gradient_cache[key]
+
+
+def make_panel_surface(size, color, radius=14, border_color=None):
+    """
+    Crea un panel de cristal: relleno translúcido con esquinas redondeadas
+    y, opcionalmente, un borde fino iluminado.
+    """
+    key = (size, color, radius, border_color)
+    if key not in _panel_cache:
+        width, height = size
+        surf = pygame.Surface((width, height), pygame.SRCALPHA)
+
+        # Relleno translúcido recortado con esquinas redondeadas
+        surf.fill(color)
+        mask = pygame.Surface((width, height), pygame.SRCALPHA)
+        pygame.draw.rect(
+            mask, (255, 255, 255, 255), (0, 0, width, height), border_radius=radius
+        )
+        surf.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+        # Borde fino con un toque de luz en la parte superior
+        if border_color:
+            pygame.draw.rect(
+                surf, border_color, (0, 0, width, height), 1, border_radius=radius
+            )
+            if width > 2 * radius:
+                highlight = lerp_color(tuple(border_color[:3]), (255, 255, 255), 0.45)
+                pygame.draw.line(surf, highlight, (radius, 1), (width - radius - 1, 1))
+
+        _panel_cache[key] = surf
+    return _panel_cache[key]
+
+
+def draw_panel(screen, rect, color=(16, 22, 44, 180), radius=14, border_color=None, shadow=True):
+    """Dibuja un panel de cristal con una sombra suave debajo."""
+    x, y, width, height = rect
+    if shadow:
+        shadow_surf = make_panel_surface((width, height), (0, 0, 0, 110), radius)
+        screen.blit(shadow_surf, (x + 3, y + 5))
+    screen.blit(make_panel_surface((width, height), color, radius, border_color), (x, y))
+
+
+def make_glow_sprite(radius, color, alpha=255):
+    """
+    Crea un halo neón circular con decaimiento cuadrático (muy suave).
+    El alfa se cuantiza en 16 niveles para mantener la caché pequeña.
+    """
+    radius = max(1, int(radius))
+    alpha = max(0, min(255, (int(alpha) // 16) * 16))
+    key = (radius, color, alpha)
+    if key not in _glow_cache:
+        size = radius * 2 + 2
+        center = size // 2
+        bright = lerp_color(color, (255, 255, 255), 0.35)
+        surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        for y in range(size):
+            for x in range(size):
+                distance = math.hypot(x - center, y - center)
+                if distance <= radius:
+                    falloff = 1.0 - distance / radius
+                    surf.set_at((x, y), (*bright, int(alpha * falloff * falloff)))
+        _glow_cache[key] = surf
+    return _glow_cache[key]
+
+
+def draw_glow_dot(screen, color, center, radius, alpha=255):
+    """Dibuja un punto luminoso con halo difuso (alpha = intensidad del brillo)."""
+    sprite = make_glow_sprite(radius, color, alpha)
+    offset_x = center[0] - sprite.get_width() // 2
+    offset_y = center[1] - sprite.get_height() // 2
+    screen.blit(sprite, (offset_x, offset_y))
+
+
+def render_text(text, size, color, bold=False, spacing=0, cached=True):
+    """
+    Renderiza un texto con la tipografía moderna del juego.
+    Con spacing > 0 separa las letras (estilo logotipo).
+    """
+    key = (text, size, color, bold, spacing)
+    if not cached:
+        return _render_text_now(text, size, color, bold, spacing)
+    if key not in _text_cache:
+        _text_cache[key] = _render_text_now(text, size, color, bold, spacing)
+    return _text_cache[key]
+
+
+def _render_text_now(text, size, color, bold, spacing):
+    """Renderiza un texto sin usar la caché (para valores que cambian)."""
+    font = get_font(size, bold)
+    if spacing <= 0:
+        return font.render(text, True, color)
+    letters = [font.render(char, True, color) for char in text]
+    width = sum(s.get_width() for s in letters) + spacing * max(0, len(letters) - 1)
+    surf = pygame.Surface((max(1, width), font.get_height()), pygame.SRCALPHA)
+    cursor = 0
+    for letter in letters:
+        surf.blit(letter, (cursor, 0))
+        cursor += letter.get_width() + spacing
+    return surf
+
+
+def draw_text(
+    screen,
+    text,
+    size,
+    color,
+    pos,
+    align="topleft",
+    bold=False,
+    spacing=0,
+    shadow=False,
+    glow=0,
+    cached=True,
+):
+    """
+    Dibuja un texto con alineación flexible.
+    - shadow: dibuja una sombra sutil detrás del texto
+    - glow: radio en píxeles del halo de color que lo rodea
+    - cached: False para textos que cambian mucho (puntuaciones, timers)
+    """
+    surf = render_text(text, size, color, bold, spacing, cached)
+    rect = surf.get_rect()
+    if align not in (
+        "topleft",
+        "topright",
+        "midleft",
+        "midright",
+        "midtop",
+        "midbottom",
+        "center",
+        "bottomleft",
+        "bottomright",
+    ):
+        align = "topleft"
+    setattr(rect, align, pos)
+
+    # Halo de color alrededor del texto (simula el brillo neón)
+    if glow > 0:
+        halo_color = lerp_color(tuple(color[:3]), (8, 12, 28), 0.5)
+        halo = render_text(text, size, halo_color, bold, spacing, cached)
+        for step_x, step_y in (
+            (-glow, 0),
+            (glow, 0),
+            (0, -glow),
+            (0, glow),
+            (-glow, -glow),
+            (glow, glow),
+            (-glow, glow),
+            (glow, -glow),
+        ):
+            screen.blit(halo, (rect.x + step_x, rect.y + step_y))
+
+    # Sombra sutil detrás del texto
+    if shadow:
+        shadow_surf = render_text(text, size, (5, 8, 18), bold, spacing, cached)
+        screen.blit(shadow_surf, (rect.x + 1, rect.y + 2))
+
+    screen.blit(surf, rect)
+
+
+def draw_pill_button(screen, rect, label, color, pulse=0.0, font_size=22):
+    """
+    Dibuja un botón tipo píldora: cristal oscuro, borde luminoso,
+    etiqueta centrada y un halo exterior que pulsa suavemente.
+    """
+    x, y, width, height = rect
+    radius = max(6, height // 2)
+
+    # Halo exterior pulsante (se cuantiza para no llenar la caché)
+    halo_alpha = 25 + 15 * round(min(1.0, max(0.0, pulse)) * 2)
+    halo = make_panel_surface((width + 28, height + 24), (*color, halo_alpha), radius + 12)
+    screen.blit(halo, (x - 14, y - 12))
+
+    # Cuerpo de cristal con borde del color del acento
+    draw_panel(
+        screen,
+        (x, y, width, height),
+        (12, 18, 40, 215),
+        radius,
+        lerp_color(color, (255, 255, 255), 0.35),
+    )
+
+    # Etiqueta del botón
+    draw_text(
+        screen,
+        label,
+        font_size,
+        color,
+        (x + width // 2, y + height // 2),
+        align="center",
+        bold=True,
+        spacing=2,
+        glow=1,
+    )
+
+
+def make_ball_sprite(size, destroyer_mode=False):
+    """
+    Pre-renderiza la pelota: una esfera con degradado radial
+    (blanca en el centro, teñida en el borde).
+    """
+    key = (size, destroyer_mode)
+    if key not in _ball_cache:
+        edge_color = (255, 96, 96) if destroyer_mode else (110, 235, 255)
+        radius = size / 2
+        surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        for y in range(size):
+            for x in range(size):
+                offset_x, offset_y = x - radius + 0.5, y - radius + 0.5
+                distance = math.hypot(offset_x, offset_y)
+                if distance <= radius:
+                    edge = min(1.0, distance / radius)
+                    surf.set_at((x, y), lerp_color((255, 255, 255), edge_color, edge * 0.9))
+        _ball_cache[key] = surf
+    return _ball_cache[key]
+
+
+# Las siguientes funciones mantienen la API antigua de efectos neón,
+# ahora construidas sobre los halos cacheados del sistema moderno.
 def draw_glow_circle(screen, color, center, radius, glow_radius=15):
-    """Dibuja un círculo con efecto de brillo neón"""
-    # Capa de brillo exterior (difuminado)
-    for i in range(glow_radius, 0, -1):
-        glow_color = tuple(min(255, c + 50) for c in color)
-        pygame.draw.circle(screen, glow_color, center, radius + i, 2)
-    # Círculo principal
-    pygame.draw.circle(screen, color, center, radius)
+    """Dibuja un círculo con halo neón difuso."""
+    draw_glow_dot(screen, color, center, radius + max(2, glow_radius // 3), alpha=150)
+    pygame.draw.circle(screen, lerp_color(color, (255, 255, 255), 0.3), center, radius)
 
 
 def draw_glow_rect(screen, color, rect, glow_size=8):
-    """Dibuja un rectángulo con efecto de brillo neón"""
+    """Dibuja un rectángulo con halo neón difuso."""
     x, y, width, height = rect
-    # Capa de brillo exterior
-    for i in range(glow_size, 0, -1):
-        glow_color = tuple(min(255, c + 40) for c in color)
-        pygame.draw.rect(
-            screen, glow_color, (x - i, y - i, width + i * 2, height + i * 2), 2
-        )
-    # Rectángulo principal
+    halo = make_panel_surface(
+        (width + glow_size * 2, height + glow_size * 2), (*color, 60), glow_size * 2
+    )
+    screen.blit(halo, (x - glow_size, y - glow_size))
     pygame.draw.rect(screen, color, (x, y, width, height))
 
 
 def draw_neon_line(screen, color, start, end, width=3, glow_size=10):
-    """Dibuja una línea con efecto de brillo neón"""
-    # Brillo exterior
-    for i in range(glow_size, 0, -1):
-        glow_color = tuple(min(255, c + 30) for c in color)
-        pygame.draw.line(screen, glow_color, start, end, width + i * 2)
-    # Línea principal
+    """Dibuja una línea con efecto de brillo neón."""
+    pygame.draw.line(screen, shade(color, 0.5), start, end, width + glow_size)
     pygame.draw.line(screen, color, start, end, width)
-    # Línea central brillante
-    bright_color = tuple(min(255, c + 100) for c in color)
-    pygame.draw.line(screen, bright_color, start, end, max(1, width // 2))
+    pygame.draw.line(
+        screen, lerp_color(color, (255, 255, 255), 0.6), start, end, max(1, width // 2)
+    )
 
 
 def draw_glow_polygon(screen, color, points, glow_size=8):
-    """Dibuja un polígono con efecto de brillo neón"""
-    # Brillo exterior
-    for i in range(glow_size, 0, -1):
-        glow_color = tuple(min(255, c + 40) for c in color)
-        scaled_points = []
-        center_x = sum(p[0] for p in points) / len(points)
-        center_y = sum(p[1] for p in points) / len(points)
-        for px, py in points:
-            dx, dy = px - center_x, py - center_y
-            scale = 1 + i / 20
-            scaled_points.append((center_x + dx * scale, center_y + dy * scale))
-        pygame.draw.polygon(screen, glow_color, scaled_points, 2)
-    # Polígono principal
+    """Dibuja un polígono con efecto de brillo neón."""
+    center_x = sum(p[0] for p in points) / len(points)
+    center_y = sum(p[1] for p in points) / len(points)
+    scaled_points = []
+    for point_x, point_y in points:
+        offset_x, offset_y = point_x - center_x, point_y - center_y
+        scale = 1 + glow_size / 40
+        scaled_points.append((center_x + offset_x * scale, center_y + offset_y * scale))
+    pygame.draw.polygon(screen, shade(color, 0.4), scaled_points)
     pygame.draw.polygon(screen, color, points)
 
 
@@ -1193,38 +1495,18 @@ class Brick:
 
     def _build_surface(self):
         """
-        Pre-renderiza el ladrillo con el aspecto clásico de Arkanoid:
-        color plano con bisel (borde superior/izquierdo claro,
-        inferior/derecho oscuro).
+        Pre-renderiza el ladrillo con un aspecto moderno: degradado suave,
+        brillo superior tipo cristal y esquinas redondeadas.
         """
-        surf = pygame.Surface((self.width, self.height))
-        r, g, b = self.color
-
-        # Relleno plano del color base
-        surf.fill(self.color)
-
-        # Bisel claro (arriba e izquierda) - efecto de brillo retro
-        light = (min(255, r + 70), min(255, g + 70), min(255, b + 70))
-        pygame.draw.line(surf, light, (0, 0), (self.width - 1, 0))
-        pygame.draw.line(surf, light, (0, 0), (0, self.height - 1))
-
-        # Bisel oscuro (abajo y derecha) - efecto de sombra retro
-        dark = (max(0, r - 70), max(0, g - 70), max(0, b - 70))
-        pygame.draw.line(
-            surf, dark, (0, self.height - 1), (self.width - 1, self.height - 1)
+        top_color = lerp_color(self.color, (255, 255, 255), 0.4)
+        bottom_color = shade(self.color, 0.55)
+        self.surface = make_gradient_surface(
+            (self.width, self.height), top_color, bottom_color, radius=6
         )
-        pygame.draw.line(
-            surf, dark, (self.width - 1, 0), (self.width - 1, self.height - 1)
+        # Sombra suave (se dibuja debajo del ladrillo)
+        self.shadow_surface = make_panel_surface(
+            (self.width, self.height), (0, 0, 0, 110), 6
         )
-
-        # Banda central oscura clásica (dos líneas horizontales)
-        band = (max(0, r - 40), max(0, g - 40), max(0, b - 40))
-        mid1 = self.height // 3
-        mid2 = (self.height * 2) // 3
-        pygame.draw.line(surf, band, (0, mid1), (self.width - 1, mid1))
-        pygame.draw.line(surf, band, (0, mid2), (self.width - 1, mid2))
-
-        self.surface = surf
 
     def hit(self):
         """
@@ -1278,31 +1560,59 @@ class Brick:
 
     def draw(self, screen):
         """
-        Dibuja el ladrillo con el aspecto clásico de Arkanoid.
+        Dibuja el ladrillo con sombra, degradado cristalino e indicios de daño.
         """
         if not self.destroyed:
-            # Dibujar la superficie pre-renderizada (bisel y bandas)
+            # Sombra suave para dar profundidad
+            screen.blit(self.shadow_surface, (self.x + 2, self.y + 3))
+
+            # Cuerpo con degradado (superficie pre-renderizada)
             screen.blit(self.surface, (self.x, self.y))
 
-            # Indicador de resistencia: grietas (líneas oscuras en cruz)
+            # Borde fino del propio color del ladrillo
+            pygame.draw.rect(
+                screen,
+                shade(self.color, 0.4),
+                (self.x, self.y, self.width, self.height),
+                1,
+                border_radius=6,
+            )
+
+            # Grietas finas cuando el ladrillo ya ha recibido daño
             if self.max_hits > 1 and self.current_hits > 0:
-                crack_color = (20, 20, 20)
-                cx = self.x + self.width // 2
-                cy = self.y + self.height // 2
-                pygame.draw.line(
+                crack_color = shade(self.color, 0.25)
+                center_x = self.x + self.width // 2
+                center_y = self.y + self.height // 2
+                pygame.draw.lines(
                     screen,
                     crack_color,
-                    (cx - self.width // 4, self.y + 3),
-                    (cx + self.width // 4, self.y + self.height - 4),
+                    False,
+                    [
+                        (center_x - self.width // 4, self.y + 4),
+                        (center_x - 2, center_y),
+                        (center_x - self.width // 5, self.y + self.height - 4),
+                    ],
                     1,
                 )
-                pygame.draw.line(
+                pygame.draw.lines(
                     screen,
                     crack_color,
-                    (cx + self.width // 4, self.y + 3),
-                    (cx - self.width // 4, self.y + self.height - 4),
+                    False,
+                    [
+                        (center_x + self.width // 4, self.y + 4),
+                        (center_x + 3, center_y),
+                        (center_x + self.width // 5, self.y + self.height - 4),
+                    ],
                     1,
                 )
+
+            # Destello blanco justo después de recibir un impacto
+            if self.hit_animation > 0:
+                flash_alpha = (min(160, self.hit_animation * 8) // 20) * 20
+                flash = make_panel_surface(
+                    (self.width, self.height), (255, 255, 255, flash_alpha), 6
+                )
+                screen.blit(flash, (self.x, self.y))
 
     def get_rect(self):
         """
@@ -1363,60 +1673,54 @@ class PowerUp:
 
     def draw(self, screen):
         """
-        Dibuja el power-up como una cápsula clásica de Arkanoid:
-        rectángulo de color con letra identificativa.
+        Dibuja el power-up como una cápsula luminosa con degradado,
+        halo de color y su letra identificativa.
         """
         if self.active:
-            # Colores clásicos para cada tipo de power-up
-            colors = {
-                "expand": (0, 200, 0),
-                "multi_ball": (255, 200, 0),
-                "slow_ball": (0, 150, 255),
-                "destroyer_ball": (220, 0, 0),
-                "laser_shoot": (255, 120, 0),
-            }
-            color = colors.get(self.power_type, (200, 200, 200))
+            color = POWER_UP_COLORS.get(self.power_type, (200, 200, 200))
+            symbol = POWER_UP_SYMBOLS.get(self.power_type, "?")
 
-            # Símbolos para cada tipo
-            symbols = {
-                "expand": "E",
-                "multi_ball": "M",
-                "slow_ball": "S",
-                "destroyer_ball": "D",
-                "laser_shoot": "L",
-            }
-            symbol = symbols.get(self.power_type, "?")
+            # Balanceo vertical muy sutil para dar sensación de caída
+            bob = int(math.sin(self.rotation * 0.12) * 2)
+            x = int(self.x)
+            y = int(self.y) + bob
+            radius = self.height // 2
 
-            # Cápsula rectangular clásica
-            rect = pygame.Rect(self.x, self.y, self.width, self.height)
-            pygame.draw.rect(screen, color, rect, border_radius=4)
-
-            # Bisel claro arriba / oscuro abajo
-            light = tuple(min(255, c + 70) for c in color)
-            dark = tuple(max(0, c - 70) for c in color)
-            pygame.draw.line(
-                screen,
-                light,
-                (self.x + 2, self.y + 1),
-                (self.x + self.width - 3, self.y + 1),
+            # Halo de color alrededor de la cápsula
+            halo = make_panel_surface(
+                (self.width + 16, self.height + 14), (*color, 70), radius + 7
             )
-            pygame.draw.line(
-                screen,
-                dark,
-                (self.x + 2, self.y + self.height - 2),
-                (self.x + self.width - 3, self.y + self.height - 2),
-            )
+            screen.blit(halo, (x - 8, y - 7))
 
-            # Contorno
-            pygame.draw.rect(screen, dark, rect, 1, border_radius=4)
+            # Cuerpo con degradado y esquinas redondeadas
+            body = make_gradient_surface(
+                (self.width, self.height),
+                lerp_color(color, (255, 255, 255), 0.45),
+                shade(color, 0.55),
+                radius,
+            )
+            screen.blit(body, (x, y))
+
+            # Borde luminoso
+            pygame.draw.rect(
+                screen,
+                lerp_color(color, (255, 255, 255), 0.6),
+                (x, y, self.width, self.height),
+                1,
+                border_radius=radius,
+            )
 
             # Letra identificativa en el centro
-            font = pygame.font.Font(None, 20)
-            text = font.render(symbol, True, WHITE)
-            text_rect = text.get_rect(
-                center=(self.x + self.width // 2, self.y + self.height // 2)
+            draw_text(
+                screen,
+                symbol,
+                15,
+                WHITE,
+                (x + self.width // 2, y + self.height // 2),
+                align="center",
+                bold=True,
+                shadow=True,
             )
-            screen.blit(text, text_rect)
 
     def get_rect(self):
         """
@@ -1435,7 +1739,7 @@ class PowerUp:
 class Laser:
     """
     Clase que representa un proyectil láser disparado por la paleta.
-    Los láser viajan hacia arriba y destruyen ladrillos al impactar.
+    El láser viajan hacia arriba y destruyen ladrillos al impactar.
     """
 
     def __init__(self, x, y):
@@ -1487,17 +1791,32 @@ class Laser:
 
     def draw(self, screen):
         """
-        Dibuja el láser como un proyectil rectangular clásico.
+        Dibuja el láser como un rayo de energía con halo y núcleo brillante.
         """
         if self.active:
-            # Proyectil rectangular simple (estilo original)
-            pygame.draw.rect(
-                screen, (255, 80, 80), (self.x, self.y, self.width, self.height)
+            center_x = self.x + self.width // 2
+            center_y = self.y + self.height // 2
+
+            # Rastro del proyectil (se desvanece hacia atrás)
+            total = max(1, len(self.trail))
+            for index, (trail_x, trail_y) in enumerate(self.trail):
+                ratio = (index + 1) / total
+                draw_glow_dot(
+                    screen,
+                    ACCENT_PINK,
+                    (int(trail_x), int(trail_y)),
+                    2,
+                    alpha=int(80 * ratio),
+                )
+
+            # Halo del proyectil
+            draw_glow_dot(screen, ACCENT_PINK, (center_x, center_y), 8, alpha=170)
+
+            # Núcleo: degradado blanco -> rosa
+            core = make_gradient_surface(
+                (self.width + 2, self.height + 4), WHITE, ACCENT_PINK, radius=2
             )
-            # Núcleo más claro
-            pygame.draw.rect(
-                screen, (255, 200, 200), (self.x + 1, self.y, 1, self.height)
-            )
+            screen.blit(core, (self.x - 1, self.y - 2))
 
     def get_rect(self):
         """
@@ -1513,6 +1832,23 @@ class Laser:
 # ==========================================
 # CLASE GAME (JUEGO PRINCIPAL)
 # ==========================================
+def load_high_score():
+    """
+    Carga la puntuación máxima desde un archivo.
+    Si el archivo no existe, devuelve 0.
+
+    Retorna:
+    - int: puntuación máxima guardada
+    """
+    try:
+        # Intentar abrir y leer el archivo de puntuación máxima
+        with open("high_score.txt", "r") as f:
+            return int(f.read().strip())  # Leer y convertir a entero
+    except (OSError, ValueError):
+        # Si el archivo no existe, no se puede leer o tiene un formato incorrecto
+        return 0  # Devolver 0 como puntuación por defecto
+
+
 class Game:
     """
     Clase principal que maneja todo el juego de Arkanoid.
@@ -1525,6 +1861,11 @@ class Game:
         Constructor del juego. Inicializa pygame y configura el estado inicial.
         """
         # Configurar ventana del juego
+        self.lasers = None
+        self.power_ups = None
+        self.bricks = None
+        self.balls = None
+        self.paddle = None
         self.screen = pygame.display.set_mode(
             (WINDOW_WIDTH, WINDOW_HEIGHT),
             pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.SCALED,
@@ -1537,55 +1878,36 @@ class Game:
         self.background_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
         self.background_surface.fill(BLACK)
 
+        # Superficie intermedia de la escena (permite aplicar el temblor)
+        self.world_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT)).convert()
+
         # Variables del estado del juego
         self.score = 0  # Puntuación actual del jugador
         self.lives = (
             10  # Vidas restantes del jugador (aumentadas para facilitar el juego)
         )
         self.level = 1  # Nivel actual del juego
-        self.high_score = self.load_high_score()  # Puntuación máxima guardada
+        self.high_score = load_high_score()  # Puntuación máxima guardada
 
-        # Configurar fuentes para el texto en pantalla
-        self.font = pygame.font.Font(None, 36)  # Fuente mediana
-        self.small_font = pygame.font.Font(None, 24)  # Fuente pequeña
-        self.big_font = pygame.font.Font(None, 48)  # Fuente grande
+        # Tipografías modernas del juego (cacheadas por tamaño y grosor)
+        self.font = get_font(30)  # Fuente mediana
+        self.small_font = get_font(18)  # Fuente pequeña
+        self.big_font = get_font(56, bold=True)  # Fuente grande
 
-        # Texto estático pre-renderizado (por rendimiento)
-        self.menu_title = self.big_font.render("ARKANOID", True, WHITE)
-        self.menu_subtitle = self.font.render("EDICIÓN MEJORADA", True, WHITE)
-        self.menu_instructions = [
-            self.small_font.render(text, True, color)
-            for text, color in [
-                ("ESPACIO - Comenzar", WHITE),
-                ("Ratón o ←/→/A/D - Mover", WHITE),
-                ("CLIC/ESPACIO - Lanzar", WHITE),
-                ("CLIC sostenido - Disparar", WHITE),
-                ("B - Pelota extra", WHITE),
-                ("P - Pausar", WHITE),
-                ("L - Activar láser", WHITE),
-                ("E - Expandir paleta", WHITE),
-                ("M - Multiplicar pelotas", WHITE),
-                ("S - Ralentizar", WHITE),
-                ("D - Modo destructor", WHITE),
-            ]
+        # Controles que se muestran en el menú: (tecla, descripción)
+        self.menu_controls = [
+            ("ESPACIO", "Comenzar / Lanzar"),
+            ("RATÓN", "Mover la paleta"),
+            ("← → A D", "Mover la paleta"),
+            ("CLIC", "Lanzar / Disparar"),
+            ("B", "Pelota extra"),
+            ("P", "Pausar"),
+            ("L", "Cañones láser"),
+            ("E", "Paleta ancha"),
+            ("M", "Multibola"),
+            ("S", "Bola lenta"),
+            ("D", "Bola destructora"),
         ]
-        self.menu_info = self.small_font.render(
-            "36 niveles - Recoge power-ups", True, WHITE
-        )
-        self.game_over_title = self.big_font.render("GAME OVER", True, NEON_RED)
-        self.victory_title = self.big_font.render(
-            "¡NIVEL COMPLETADO!", True, NEON_GREEN
-        )
-        self.pause_text = self.font.render("JUEGO PAUSADO", True, WHITE)
-        self.resume_text = self.small_font.render(
-            "Presiona P para reanudar", True, WHITE
-        )
-        self.restart_text = self.small_font.render(
-            "Presiona ESPACIO para reiniciar", True, NEON_CYAN
-        )
-        self.continue_text = self.small_font.render(
-            "Presiona ESPACIO para continuar", True, NEON_CYAN
-        )
 
         # Estados y efectos visuales
         self.game_state = (
@@ -1616,71 +1938,9 @@ class Game:
         # Sistema de sonido
         self.sound_manager = sounds.get_sound_manager()
 
-        # Dibujar el marco metálico clásico de Arkanoid (en la superficie de fondo)
-        # Grosor del marco
-        frame_thickness = 8
-        # Colores del marco: gris metálico con bisel claro arriba/izq y oscuro abajo/der
-        frame_light = (180, 180, 180)
-        frame_dark = (80, 80, 80)
-        frame_mid = (130, 130, 130)
-
-        # Relleno del marco (todo el perímetro)
-        pygame.draw.rect(
-            self.background_surface,
-            frame_mid,
-            (0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
-            frame_thickness,
-        )
-        # Bisel claro (líneas superiores e izquierdas del marco)
-        pygame.draw.line(
-            self.background_surface, frame_light, (0, 0), (WINDOW_WIDTH, 0), 2
-        )
-        pygame.draw.line(
-            self.background_surface, frame_light, (0, 0), (0, WINDOW_HEIGHT), 2
-        )
-        pygame.draw.line(
-            self.background_surface,
-            frame_light,
-            (frame_thickness, frame_thickness),
-            (WINDOW_WIDTH - frame_thickness, frame_thickness),
-            1,
-        )
-        pygame.draw.line(
-            self.background_surface,
-            frame_light,
-            (frame_thickness, frame_thickness),
-            (frame_thickness, WINDOW_HEIGHT - frame_thickness),
-            1,
-        )
-        # Bisel oscuro (líneas inferiores y derechas del marco)
-        pygame.draw.line(
-            self.background_surface,
-            frame_dark,
-            (0, WINDOW_HEIGHT - 2),
-            (WINDOW_WIDTH, WINDOW_HEIGHT - 2),
-            2,
-        )
-        pygame.draw.line(
-            self.background_surface,
-            frame_dark,
-            (WINDOW_WIDTH - 2, 0),
-            (WINDOW_WIDTH - 2, WINDOW_HEIGHT),
-            2,
-        )
-        pygame.draw.line(
-            self.background_surface,
-            frame_dark,
-            (frame_thickness, WINDOW_HEIGHT - frame_thickness - 1),
-            (WINDOW_WIDTH - frame_thickness, WINDOW_HEIGHT - frame_thickness - 1),
-            1,
-        )
-        pygame.draw.line(
-            self.background_surface,
-            frame_dark,
-            (WINDOW_WIDTH - frame_thickness - 1, frame_thickness),
-            (WINDOW_WIDTH - frame_thickness - 1, WINDOW_HEIGHT - frame_thickness),
-            1,
-        )
+        # Construir el fondo moderno del juego (degradado, estrellas,
+        # viñeta y marco neón) una sola vez por rendimiento
+        self.build_background()
 
         # Inicializar el juego
         self.reset_game()
@@ -1689,22 +1949,6 @@ class Game:
         pygame.mouse.set_visible(False)
         pygame.event.set_grab(True)
         self.mouse_captured = True
-
-    def load_high_score(self):
-        """
-        Carga la puntuación máxima desde un archivo.
-        Si el archivo no existe, devuelve 0.
-
-        Retorna:
-        - int: puntuación máxima guardada
-        """
-        try:
-            # Intentar abrir y leer el archivo de puntuación máxima
-            with open("high_score.txt", "r") as f:
-                return int(f.read().strip())  # Leer y convertir a entero
-        except (OSError, ValueError):
-            # Si el archivo no existe, no se puede leer o tiene un formato incorrecto
-            return 0  # Devolver 0 como puntuación por defecto
 
     def save_high_score(self):
         """
@@ -1906,20 +2150,21 @@ class Game:
                     self.apply_power_up("destroyer_ball")
             elif (
                 event.type == pygame.MOUSEBUTTONDOWN
-            ):  # Usuario hizo clic  # noqa: SIM102
-                if event.button == 1 and self.game_state == "playing":  # Clic izquierdo
-                    # Liberar la pelota pegada si hay alguna
-                    if self.waiting_for_ball_release:
-                        for ball in self.balls:
-                            if ball.stuck_to_paddle:
-                                ball.release()
-                        self.waiting_for_ball_release = False
+                and event.button == 1
+                and self.game_state == "playing"
+            ):  # Usuario hizo clic izquierdo
+                # Liberar la pelota pegada si hay alguna
+                if self.waiting_for_ball_release:
+                    for ball in self.balls:
+                        if ball.stuck_to_paddle:
+                            ball.release()
+                    self.waiting_for_ball_release = False
 
-                    # Disparar láser si está disponible
-                    if self.paddle.can_shoot():
-                        new_lasers = self.paddle.shoot()
-                        if new_lasers:
-                            self.lasers.extend(new_lasers)
+                # Disparar láser si está disponible
+                if self.paddle.can_shoot():
+                    new_lasers = self.paddle.shoot()
+                    if new_lasers:
+                        self.lasers.extend(new_lasers)
         return True
 
     def update(self):
@@ -2203,7 +2448,7 @@ class Game:
             self.active_power_ups["expand"] = 600  # 10 segundos
         elif power_type == "multi_ball":
             if (
-                len(self.balls) > 0 and len(self.balls) < 5
+                    0 < len(self.balls) < 5
             ):  # Verificar que hay pelotas y no exceder máximo
                 for _ in range(2):
                     new_ball = Ball(self.balls[0].x, self.balls[0].y)
@@ -2256,245 +2501,482 @@ class Game:
             self.paddle.activate_laser()
             self.active_power_ups["laser_shoot"] = 2000  # 20 segundos
 
+    def build_background(self):
+        """
+        Dibuja una sola vez el fondo moderno del juego: degradado profundo,
+        campo de estrellas, rejilla sutil, viñeta y marco neón.
+        El resultado se guarda en self.background_surface por rendimiento.
+        """
+        surface = self.background_surface
+
+        # Degradado vertical: azul profundo arriba, casi negro abajo
+        surface.blit(
+            make_gradient_surface(
+                (WINDOW_WIDTH, WINDOW_HEIGHT), BG_TOP, BG_BOTTOM, radius=0, gloss=False
+            ),
+            (0, 0),
+        )
+
+        # Campo de estrellas con brillo variable (mismo resultado en cada partida)
+        stars = random.Random(20250715)
+        for _ in range(170):
+            star_x = stars.randint(0, WINDOW_WIDTH - 1)
+            star_y = stars.randint(0, WINDOW_HEIGHT - 1)
+            brightness = stars.randint(35, 135)
+            star_size = 1 if stars.random() < 0.8 else 2
+            pygame.draw.circle(
+                surface, (brightness, brightness, brightness + 15), (star_x, star_y), star_size
+            )
+
+        # Rejilla de puntos muy sutil en la zona de juego
+        grid_color = (27, 34, 62)
+        for grid_y in range(72, WINDOW_HEIGHT - 24, 36):
+            for grid_x in range(26, WINDOW_WIDTH - 24, 36):
+                surface.set_at((grid_x, grid_y), grid_color)
+
+        # Viñeta: oscurece los bordes para centrar la atención en el juego
+        vignette = pygame.Surface((WINDOW_WIDTH // 8, WINDOW_HEIGHT // 8), pygame.SRCALPHA)
+        for y in range(vignette.get_height()):
+            for x in range(vignette.get_width()):
+                offset_x = x / vignette.get_width() - 0.5
+                offset_y = y / vignette.get_height() - 0.5
+                distance = math.hypot(offset_x * 1.25, offset_y)
+                alpha = int(min(1.0, max(0.0, (distance - 0.3) * 2.6)) * 165)
+                vignette.set_at((x, y), (2, 3, 10, alpha))
+        surface.blit(
+            pygame.transform.smoothscale(vignette, (WINDOW_WIDTH, WINDOW_HEIGHT)), (0, 0)
+        )
+
+        # Franja roja tenue en la zona de pérdida (borde inferior)
+        danger = pygame.Surface((WINDOW_WIDTH, 90), pygame.SRCALPHA)
+        for i in range(90):
+            alpha = int((i / 89) ** 2 * 70)
+            pygame.draw.line(danger, (255, 40, 60, alpha), (0, i), (WINDOW_WIDTH, i))
+        surface.blit(danger, (0, WINDOW_HEIGHT - 90))
+
+        # Marco neón alrededor de la zona de juego
+        frame = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        pygame.draw.rect(
+            frame, (*ACCENT_CYAN, 20), (1, 1, WINDOW_WIDTH - 2, WINDOW_HEIGHT - 2), 8, border_radius=14
+        )
+        pygame.draw.rect(
+            frame, (*ACCENT_CYAN, 55), (3, 3, WINDOW_WIDTH - 6, WINDOW_HEIGHT - 6), 3, border_radius=12
+        )
+        pygame.draw.rect(
+            frame, (185, 245, 255, 150), (3, 3, WINDOW_WIDTH - 6, WINDOW_HEIGHT - 6), 1, border_radius=12
+        )
+        surface.blit(frame, (0, 0))
+
     def draw_background(self):
-        """Dibuja el fondo negro con el marco metálico clásico."""
-        # Dibujar el marco metálico desde la superficie cacheada
+        """Dibuja el fondo moderno cacheado (degradado, estrellas y marco neón)."""
+        # Dibujar el fondo desde la superficie cacheada
         self.screen.blit(self.background_surface, (0, 0))
 
     def draw(self):
-        self.draw_background()
+        # La escena se dibuja primero en una superficie intermedia para poder
+        # aplicar el temblor de pantalla cuando la pelota golpea con fuerza
+        self.world_surface.blit(self.background_surface, (0, 0))
 
         if self.game_state == "menu":
-            self.draw_menu()
+            self.draw_menu(self.world_surface)
         elif self.game_state == "playing":
-            self.draw_game()
+            self.draw_game(self.world_surface)
         elif self.game_state == "game_over":
-            self.draw_game_over()
+            self.draw_game_over(self.world_surface)
         elif self.game_state == "victory":
-            self.draw_victory()
+            self.draw_victory(self.world_surface)
 
+        # Temblor de pantalla: desplaza la escena un par de píxeles al azar
+        offset_x = offset_y = 0
+        if self.screen_shake > 0:
+            shake_power = min(self.screen_shake, 8)
+            offset_x = random.randint(-shake_power, shake_power)
+            offset_y = random.randint(-shake_power, shake_power)
+
+        self.screen.fill(BLACK)
+        self.screen.blit(self.world_surface, (offset_x, offset_y))
         pygame.display.flip()
 
-    def draw_menu(self):
-        """Dibuja el menú con el estilo clásico de Arkanoid."""
-        # Título (posicionado más arriba)
-        title_y = 80
-        title = self.big_font.render("ARKANOID", True, WHITE)
-        title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, title_y))
-        self.screen.blit(title, title_rect)
+    def draw_menu(self, screen):
+        """Dibuja el menú principal: logotipo flotante y tarjeta de cristal."""
+        center_x = WINDOW_WIDTH // 2
+        now = pygame.time.get_ticks()
 
-        # Subtítulo
-        subtitle_y = title_y + 50
-        subtitle_rect = self.menu_subtitle.get_rect(
-            center=(WINDOW_WIDTH // 2, subtitle_y)
+        # Logotipo con flotación suave y halo neón
+        float_y = int(math.sin(now * 0.002) * 4)
+        draw_text(
+            screen,
+            "ARKANOID",
+            84,
+            ACCENT_CYAN,
+            (center_x, 96 + float_y),
+            align="center",
+            bold=True,
+            spacing=12,
+            glow=3,
         )
-        self.screen.blit(self.menu_subtitle, subtitle_rect)
-
-        # Línea decorativa
-        line_y = subtitle_y + 30
-        pygame.draw.line(
-            self.screen,
-            WHITE,
-            (WINDOW_WIDTH // 2 - 150, line_y),
-            (WINDOW_WIDTH // 2 + 150, line_y),
-            1,
+        draw_text(
+            screen,
+            "EDICIÓN MEJORADA",
+            18,
+            TEXT_DIM,
+            (center_x, 152 + float_y),
+            align="center",
+            spacing=8,
         )
 
-        # Instrucciones (organizadas en columnas)
-        start_y = line_y + 25
-        spacing = 22
+        # Línea decorativa con los dos colores de acento
+        line_y = 176
+        pygame.draw.line(screen, ACCENT_CYAN, (center_x - 170, line_y), (center_x - 12, line_y), 2)
+        pygame.draw.line(screen, ACCENT_PINK, (center_x + 12, line_y), (center_x + 170, line_y), 2)
 
-        for i, text in enumerate(self.menu_instructions):
-            text_rect = text.get_rect(center=(WINDOW_WIDTH // 2, start_y + i * spacing))
-            self.screen.blit(text, text_rect)
+        # Tarjeta de cristal con los controles
+        draw_panel(screen, (160, 196, 680, 300), (16, 22, 46, 185), 20, (70, 105, 170, 120))
+        draw_text(
+            screen, "CONTROLES", 16, TEXT_DIM, (center_x, 226), align="center", spacing=10
+        )
 
-        # Información adicional
-        info_y = start_y + len(self.menu_instructions) * spacing + 15
-        info_rect = self.menu_info.get_rect(center=(WINDOW_WIDTH // 2, info_y))
-        self.screen.blit(self.menu_info, info_rect)
+        # Dos columnas de controles (tecla + descripción)
+        for index, (key_name, description) in enumerate(self.menu_controls):
+            column = index // 6
+            row = index % 6
+            key_x = 210 + column * 320
+            key_y = 252 + row * 38
+
+            # Tecla con aspecto de cristal y borde neón
+            label = render_text(key_name, 13, ACCENT_CYAN, bold=True, spacing=1)
+            key_width = max(46, label.get_width() + 22)
+            keycap = make_panel_surface((key_width, 26), (20, 28, 56, 220), 8, (*ACCENT_CYAN, 130))
+            screen.blit(keycap, (key_x, key_y))
+            screen.blit(
+                label,
+                (key_x + (key_width - label.get_width()) // 2, key_y + (26 - label.get_height()) // 2),
+            )
+
+            # Descripción del control
+            draw_text(
+                screen, description, 17, TEXT_PRIMARY, (key_x + key_width + 12, key_y + 13),
+                align="midleft",
+            )
+
+        # Botón principal pulsante
+        pulse = (math.sin(now * 0.005) + 1) / 2
+        draw_pill_button(
+            screen,
+            (center_x - 200, 522, 400, 52),
+            "PULSA ESPACIO PARA JUGAR",
+            ACCENT_CYAN,
+            pulse,
+            font_size=19,
+        )
 
         # Puntuación máxima
-        score_text = self.small_font.render(f"Récord: {self.high_score}", True, WHITE)
-        score_rect = score_text.get_rect(center=(WINDOW_WIDTH // 2, info_y + 25))
-        self.screen.blit(score_text, score_rect)
+        draw_text(screen, "RÉCORD", 16, TEXT_DIM, (center_x - 14, 616), align="midright", spacing=5)
+        draw_text(
+            screen, str(self.high_score), 26, NEON_YELLOW, (center_x + 14, 616),
+            align="midleft", bold=True, cached=False,
+        )
 
-    def draw_game(self):
-        """Dibuja el juego con UI neón profesional."""
-        # Dibujar elementos del juego
-        self.paddle.draw(self.screen)
+        # Información de la edición
+        draw_text(
+            screen,
+            "36 NIVELES  ·  5 POWER-UPS  ·  FÍSICA DE REBOTE POR ÁNGULOS",
+            13,
+            TEXT_DIM,
+            (center_x, 664),
+            align="center",
+            spacing=3,
+        )
+
+    def draw_game(self, screen):
+        """Dibuja los elementos del juego y la interfaz moderna."""
+        # Elementos del juego (los ladrillos quedan detrás del resto)
+        for brick in self.bricks:
+            brick.draw(screen)
+
+        self.paddle.draw(screen)
 
         for ball in self.balls:
-            ball.draw(self.screen)
-
-        for brick in self.bricks:
-            brick.draw(self.screen)
+            ball.draw(screen)
 
         for power_up in self.power_ups:
-            power_up.draw(self.screen)
+            power_up.draw(screen)
 
         for laser in self.lasers:
-            laser.draw(self.screen)
+            laser.draw(screen)
 
-        # Dibujar partículas
+        # Partículas de efectos
         for particle in self.particles:
-            particle.draw(self.screen)
+            particle.draw(screen)
 
-        # UI clásica: texto simple sobre fondo negro, sin paneles neón
-        score_text = self.small_font.render(f"PUNTOS: {self.score}", True, WHITE)
-        self.screen.blit(score_text, (20, 15))
+        # Barra de estado superior
+        self.draw_hud(screen)
 
-        lives_text = self.small_font.render(f"VIDAS: {self.lives}", True, WHITE)
-        self.screen.blit(lives_text, (20, 38))
-
-        level_text = self.small_font.render(f"NIVEL: {self.level}", True, WHITE)
-        self.screen.blit(level_text, (20, 61))
-
-        # Información del nivel actual (derecha)
-        pattern_name = LEVEL_NAMES[(self.level - 1) % len(LEVEL_NAMES)]
-        pattern_text = self.small_font.render(f"{pattern_name}", True, WHITE)
-        self.screen.blit(pattern_text, (WINDOW_WIDTH - 190, 15))
-
-        high_score_text = self.small_font.render(
-            f"MÁXIMA: {self.high_score}", True, WHITE
-        )
-        self.screen.blit(high_score_text, (WINDOW_WIDTH - 190, 38))
-
-        # ==========================================
-        # MOSTRAR POWER-UPS ACTIVOS
-        # ==========================================
-        active_letters = []
-        power_colors = {
-            "expand": NEON_GREEN,
-            "multi_ball": NEON_YELLOW,
-            "slow_ball": NEON_PURPLE,
-            "destroyer_ball": NEON_RED,
-            "laser_shoot": NEON_ORANGE,
-        }
-
-        for power_type, timer in self.active_power_ups.items():
-            if timer > 0:
-                letter = power_type[0].upper()
-                active_letters.append((letter, power_colors.get(power_type, WHITE)))
-
-        # Dibujar letras de power-ups activos (círculos simples centrados)
-        if active_letters:
-            pw_panel_x = WINDOW_WIDTH // 2 - 80
-
-            start_x = pw_panel_x + 5
-            for i, (letter, color) in enumerate(active_letters):
-                # Fondo del carácter
-                pygame.draw.circle(self.screen, color, (start_x + i * 25 + 8, 20), 10)
-                letter_text = self.small_font.render(letter, True, BLACK)
-                letter_rect = letter_text.get_rect(center=(start_x + i * 25 + 8, 20))
-                self.screen.blit(letter_text, letter_rect)
-
-        # ==========================================
-        # MOSTRAR VELOCIDAD DE LAS PELOTAS
-        # ==========================================
-        if self.balls and not self.waiting_for_ball_release:
-            ball_speed = math.sqrt(
-                self.balls[0].speed_x ** 2 + self.balls[0].speed_y ** 2
-            )
-            speed_text = self.small_font.render(f"VEL: {ball_speed:.1f}", True, WHITE)
-            self.screen.blit(speed_text, (WINDOW_WIDTH // 2 - 60, 45))
-
-        # Indicador visual para pelota lista para lanzar
+        # Aviso de pelota lista para lanzar
         if self.waiting_for_ball_release:
-            flash_time = pygame.time.get_ticks() // 400
-            if flash_time % 2 == 0:
-                # Texto parpadeante clásico
-                ready_text = self.font.render("CLIC o ESPACIO para lanzar", True, WHITE)
-                ready_rect = ready_text.get_rect(
-                    center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 80)
-                )
-                self.screen.blit(ready_text, ready_rect)
+            pulse = (math.sin(pygame.time.get_ticks() * 0.006) + 1) / 2
+            draw_pill_button(
+                screen,
+                (WINDOW_WIDTH // 2 - 190, WINDOW_HEIGHT - 165, 380, 46),
+                "CLIC O ESPACIO PARA LANZAR",
+                ACCENT_CYAN,
+                pulse,
+                font_size=18,
+            )
 
-            # Flecha parpadeante apuntando a la pelota pegada
+            # Flecha animada apuntando a la pelota pegada
             for ball in self.balls:
                 if ball.stuck_to_paddle:
-                    arrow_color = WHITE if flash_time % 2 == 0 else (150, 150, 150)
-                    arrow_points = [
-                        (ball.x - 10, ball.y - 25),
-                        (ball.x + 10, ball.y - 25),
-                        (ball.x, ball.y - 15),
-                    ]
-                    pygame.draw.polygon(self.screen, arrow_color, arrow_points)
+                    bob = int(math.sin(pygame.time.get_ticks() * 0.01) * 3)
+                    arrow_y = int(ball.y) - 32 + bob
+                    draw_glow_dot(screen, ACCENT_CYAN, (int(ball.x), arrow_y + 6), 8, alpha=120)
+                    pygame.draw.polygon(
+                        screen,
+                        ACCENT_CYAN,
+                        [
+                            (int(ball.x) - 9, arrow_y),
+                            (int(ball.x) + 9, arrow_y),
+                            (int(ball.x), arrow_y + 12),
+                        ],
+                    )
 
         # ==========================================
         # MENSAJE DE PAUSA
         # ==========================================
         if self.paused and self.game_state == "playing":
-            # Fondo semi-transparente para el mensaje de pausa
-            pause_overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-            pause_overlay.set_alpha(128)  # Semi-transparente
-            pause_overlay.fill(BLACK)
-            self.screen.blit(pause_overlay, (0, 0))
+            self.draw_pause(screen)
 
-            # Mensaje de pausa
-            pause_rect = self.pause_text.get_rect(
-                center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 30)
-            )
-            self.screen.blit(self.pause_text, pause_rect)
-
-            # Instrucción para reanudar
-            resume_rect = self.resume_text.get_rect(
-                center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 30)
-            )
-            self.screen.blit(self.resume_text, resume_rect)
-
-    def draw_game_over(self):
-        """Dibuja la pantalla de game over con el estilo clásico."""
-        # Título
-        title_y = WINDOW_HEIGHT // 2 - 80
-        game_over_rect = self.game_over_title.get_rect(
-            center=(WINDOW_WIDTH // 2, title_y)
+    def draw_hud(self, screen):
+        """Barra superior de cristal: estadísticas, power-ups y velocidad."""
+        # Barra de cristal translúcido
+        draw_panel(
+            screen,
+            (14, 8, WINDOW_WIDTH - 28, 46),
+            (14, 20, 44, 170),
+            14,
+            (60, 95, 155, 110),
+            shadow=False,
         )
-        self.screen.blit(self.game_over_title, game_over_rect)
 
-        # Puntuación
-        score_y = title_y + 60
-        score = self.font.render(f"Puntuación Final: {self.score}", True, WHITE)
-        score_rect = score.get_rect(center=(WINDOW_WIDTH // 2, score_y))
-        self.screen.blit(score, score_rect)
+        # Velocidad actual de las pelotas
+        if self.balls and not self.waiting_for_ball_release:
+            ball_speed = math.sqrt(self.balls[0].speed_x**2 + self.balls[0].speed_y**2)
+            speed_value = f"{ball_speed:.1f}"
+        else:
+            speed_value = "-"
 
-        # Récord
-        if self.score == self.high_score:
-            record_y = score_y + 35
-            new_record = self.font.render("¡NUEVO RÉCORD!", True, NEON_YELLOW)
-            record_rect = new_record.get_rect(center=(WINDOW_WIDTH // 2, record_y))
-            self.screen.blit(new_record, record_rect)
+        # Estadísticas (parte izquierda)
+        self._draw_stat(screen, 34, "PUNTOS", str(self.score), TEXT_PRIMARY)
+        self._draw_stat(screen, 150, "VIDAS", str(self.lives), ACCENT_PINK)
+        self._draw_stat(screen, 252, "NIVEL", str(self.level), ACCENT_CYAN)
+        self._draw_stat(screen, 350, "VEL", speed_value, NEON_ORANGE)
 
-        # Instrucción
-        instr_y = score_y + 75
-        restart_rect = self.restart_text.get_rect(center=(WINDOW_WIDTH // 2, instr_y))
-        self.screen.blit(self.restart_text, restart_rect)
+        # Power-ups activos (parte central)
+        self._draw_power_ups(screen)
 
-    def draw_victory(self):
-        """Dibuja la pantalla de victoria con el estilo clásico."""
-        # Título (centrado)
-        title_y = WINDOW_HEIGHT // 2 - 80
-        victory_rect = self.victory_title.get_rect(center=(WINDOW_WIDTH // 2, title_y))
-        self.screen.blit(self.victory_title, victory_rect)
-
-        # Puntuación
-        score_y = title_y + 60
-        score = self.font.render(f"Puntuación: {self.score}", True, WHITE)
-        score_rect = score.get_rect(center=(WINDOW_WIDTH // 2, score_y))
-        self.screen.blit(score, score_rect)
-
-        # Siguiente nivel
-        next_y = score_y + 35
-        next_pattern_name = LEVEL_NAMES[(self.level) % len(LEVEL_NAMES)]
-        level_info = self.font.render(f"Siguiente: {next_pattern_name}", True, WHITE)
-        level_info_rect = level_info.get_rect(center=(WINDOW_WIDTH // 2, next_y))
-        self.screen.blit(level_info, level_info_rect)
-
-        # Instrucción
-        instr_y = next_y + 45
-        next_level_rect = self.continue_text.get_rect(
-            center=(WINDOW_WIDTH // 2, instr_y)
+        # Patrón del nivel y récord (parte derecha)
+        pattern_name = LEVEL_NAMES[(self.level - 1) % len(LEVEL_NAMES)].upper()
+        draw_text(
+            screen, pattern_name, 13, TEXT_DIM, (WINDOW_WIDTH - 34, 16),
+            align="topright", spacing=3,
         )
-        self.screen.blit(self.continue_text, next_level_rect)
+        draw_text(
+            screen, f"RÉCORD {self.high_score}", 18, NEON_YELLOW,
+            (WINDOW_WIDTH - 34, 30), align="topright", bold=True, cached=False,
+        )
+
+    def _draw_stat(self, screen, x, label, value, value_color):
+        """Dibuja una estadística de la barra superior (etiqueta + valor)."""
+        draw_text(screen, label, 11, TEXT_DIM, (x, 13), spacing=3)
+        draw_text(
+            screen, value, 21, value_color, (x, 25), bold=True, cached=False
+        )
+
+    def _draw_power_ups(self, screen):
+        """Muestra los power-ups activos con una barra de tiempo restante."""
+        active = [
+            (power_type, timer)
+            for power_type, timer in self.active_power_ups.items()
+            if timer > 0
+        ]
+        if not active:
+            return
+
+        pill_width, pill_height, gap = 34, 22, 8
+        total_width = len(active) * pill_width + (len(active) - 1) * gap
+        start_x = 590 - total_width // 2
+
+        for index, (power_type, timer) in enumerate(active):
+            color = POWER_UP_COLORS.get(power_type, WHITE)
+            symbol = POWER_UP_SYMBOLS.get(power_type, "?")
+            pill_x = start_x + index * (pill_width + gap)
+            pill_y = 12
+
+            # Cápsula de cristal con el símbolo del power-up
+            body = make_gradient_surface(
+                (pill_width, pill_height),
+                lerp_color(color, (255, 255, 255), 0.3),
+                shade(color, 0.5),
+                pill_height // 2,
+            )
+            screen.blit(body, (pill_x, pill_y))
+            draw_text(
+                screen, symbol, 13, WHITE,
+                (pill_x + pill_width // 2, pill_y + pill_height // 2),
+                align="center", bold=True, shadow=True,
+            )
+
+            # Barra de tiempo restante bajo la cápsula
+            ratio = timer / max(1, POWER_UP_DURATIONS.get(power_type, 1))
+            bar_width = int(pill_width * min(1.0, ratio))
+            bar_rect = (pill_x, pill_y + pill_height + 3, pill_width, 3)
+            pygame.draw.rect(screen, shade(color, 0.45), bar_rect, border_radius=2)
+            pygame.draw.rect(
+                screen, color, (pill_x, bar_rect[1], bar_width, 3), border_radius=2
+            )
+
+    def draw_pause(self, screen):
+        """Dibuja el aviso de pausa con una tarjeta de cristal."""
+        # Fondo atenuado
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((4, 6, 14, 190))
+        screen.blit(overlay, (0, 0))
+
+        center_x, center_y = WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2
+
+        # Tarjeta de cristal
+        draw_panel(
+            screen,
+            (center_x - 220, center_y - 115, 440, 230),
+            (16, 22, 46, 230),
+            22,
+            (70, 105, 170, 140),
+        )
+
+        # Título y aviso
+        draw_text(
+            screen, "PAUSA", 52, ACCENT_CYAN, (center_x, center_y - 45),
+            align="center", bold=True, spacing=10, glow=2,
+        )
+        draw_text(
+            screen, "El juego está esperando", 19, TEXT_DIM,
+            (center_x, center_y + 10), align="center",
+        )
+
+        # Botón de reanudar
+        pulse = (math.sin(pygame.time.get_ticks() * 0.005) + 1) / 2
+        draw_pill_button(
+            screen,
+            (center_x - 155, center_y + 40, 310, 46),
+            "P PARA REANUDAR",
+            ACCENT_CYAN,
+            pulse,
+            font_size=18,
+        )
+
+    def draw_result_screen(self, screen, title, title_color, rows, button_label, badge=None):
+        """
+        Pantalla de resultados (derrota o victoria): fondo atenuado,
+        tarjeta de cristal con las estadísticas y un botón pulsante.
+        """
+        # Fondo atenuado
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((4, 6, 14, 205))
+        screen.blit(overlay, (0, 0))
+
+        center_x, center_y = WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2
+
+        # Tarjeta de cristal
+        draw_panel(
+            screen,
+            (center_x - 280, center_y - 170, 560, 340),
+            (16, 22, 46, 230),
+            22,
+            (70, 105, 170, 140),
+        )
+
+        # Título con halo neón (el tamaño se adapta para no desbordar)
+        title_size = 44
+        while (
+            title_size > 28
+            and render_text(title, title_size, title_color, True, 5).get_width() > 500
+        ):
+            title_size -= 2
+        draw_text(
+            screen, title, title_size, title_color, (center_x, center_y - 112),
+            align="center", bold=True, spacing=5, glow=2,
+        )
+
+        # Filas de estadísticas (etiqueta a la izquierda, valor a la derecha)
+        row_y = center_y - 44
+        for label, value, value_color in rows:
+            draw_text(
+                screen, label, 14, TEXT_DIM, (center_x - 215, row_y + 12),
+                align="midleft", spacing=4,
+            )
+            draw_text(
+                screen, value, 25, value_color, (center_x + 215, row_y + 12),
+                align="midright", bold=True, cached=False,
+            )
+            pygame.draw.line(
+                screen,
+                (42, 58, 100),
+                (center_x - 215, row_y + 32),
+                (center_x + 215, row_y + 32),
+                1,
+            )
+            row_y += 46
+
+        # Insignia de récord (opcional)
+        if badge:
+            draw_text(
+                screen, badge, 17, NEON_YELLOW, (center_x, center_y + 52),
+                align="center", bold=True, spacing=4, glow=1,
+            )
+
+        # Botón de acción
+        pulse = (math.sin(pygame.time.get_ticks() * 0.005) + 1) / 2
+        draw_pill_button(
+            screen,
+            (center_x - 195, center_y + 92, 390, 50),
+            button_label,
+            ACCENT_CYAN,
+            pulse,
+            font_size=18,
+        )
+
+    def draw_game_over(self, screen):
+        """Dibuja la pantalla de derrota con tarjeta de cristal."""
+        rows = [
+            ("PUNTUACIÓN FINAL", str(self.score), NEON_YELLOW),
+            ("RÉCORD", str(self.high_score), TEXT_PRIMARY),
+        ]
+        badge = None
+        if self.score > 0 and self.score == self.high_score:
+            badge = "¡NUEVO RÉCORD!"
+        self.draw_result_screen(
+            screen,
+            "GAME OVER",
+            ACCENT_PINK,
+            rows,
+            "ESPACIO · REINTENTAR",
+            badge,
+        )
+
+    def draw_victory(self, screen):
+        """Dibuja la pantalla de nivel completado con tarjeta de cristal."""
+        next_pattern_name = LEVEL_NAMES[self.level % len(LEVEL_NAMES)]
+        rows = [
+            ("PUNTUACIÓN", str(self.score), NEON_YELLOW),
+            ("SIGUIENTE NIVEL", next_pattern_name, ACCENT_CYAN),
+        ]
+        self.draw_result_screen(
+            screen,
+            "¡NIVEL SUPERADO!",
+            NEON_GREEN,
+            rows,
+            "ESPACIO · SIGUIENTE NIVEL",
+        )
 
     def run(self):
         running = True

@@ -20,7 +20,7 @@ import pygame  # Librería principal para crear juegos en Python
 # ==========================================
 # INICIALIZACIÓN DE PYGAME
 # ==========================================
-# SIEMPRE necesario antes de usar cualquier función de pygame
+# SIEMPRE necesaria antes de usar cualquier función de pygame
 pygame.init()
 
 # ==========================================
@@ -118,6 +118,25 @@ class Paddle:
         # (posición + ancho) debe ser menor que el ancho total de la ventana
         if self.x < WINDOW_WIDTH - self.width:
             self.x += self.speed  # Aumentar posición X = mover derecha
+
+    def move_to(self, mouse_x):
+        """
+        Mueve la paleta hacia la posición horizontal del mouse.
+        La paleta se centra en el cursor y se ajusta (clamp) para
+        que nunca salga de los bordes de la pantalla.
+
+        Parámetros:
+        - mouse_x: coordenada X del mouse (píxeles desde la izquierda)
+        """
+        # Centrar la paleta sobre el cursor del mouse
+        # (restamos la mitad del ancho para que quede centrada)
+        self.x = mouse_x - self.width // 2
+
+        # Límite del borde izquierdo: no permitir posición menor a 0
+        self.x = max(self.x, 0)
+
+        # Límite del borde derecho: no pasar del ancho de la ventana
+        self.x = min(self.x, WINDOW_WIDTH - self.width)
 
     def draw(self, screen):
         """
@@ -483,6 +502,10 @@ class Game:
         Constructor del juego. Inicializa pygame y configura el estado inicial.
         """
         # Configurar ventana del juego
+        self.power_ups = None
+        self.bricks = None
+        self.balls = None
+        self.paddle = None
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption("Arkanoid - Python Game")
         self.clock = pygame.time.Clock()  # Para controlar velocidad del juego (60 FPS)
@@ -614,7 +637,12 @@ class Game:
         # ==========================================
         # CONTROL DE LA PALETA
         # ==========================================
-        # Verificar qué teclas están presionadas actualmente
+        # Control con MOUSE: obtener la posición actual del mouse.
+        # get_pos() devuelve una tupla (x, y); solo necesitamos la X.
+        mouse_x, _ = pygame.mouse.get_pos()
+        self.paddle.move_to(mouse_x)  # Mover la paleta al cursor
+
+        # Control con TECLADO: verificar qué teclas están presionadas
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:  # Flecha izquierda o A
             self.paddle.move_left()
@@ -772,7 +800,7 @@ class Game:
 
         # Controles del juego
         controls = self.small_font.render(
-            "Controles: ←/→ o A/D para mover", True, WHITE
+            "Controles: Mouse o ←/→ (A/D) para mover", True, WHITE
         )
         controls_rect = controls.get_rect(
             center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 50)
@@ -824,7 +852,7 @@ class Game:
         # MENSAJE DE PAUSA
         # ==========================================
         if self.paused:
-            # Fondo semi-transparente para el mensaje de pausa
+            # Fondo semitransparente para el mensaje de pausa
             pause_overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
             pause_overlay.set_alpha(128)  # Semi-transparente
             pause_overlay.fill(BLACK)

@@ -96,7 +96,12 @@ The `sounds.py` module generates all audio effects procedurally using pygame's m
 - Sounds: paddle_hit, brick_hit, brick_destroy, power_up, life_lost, game_over, victory, laser, level_complete, multi_ball
 
 ### Visual Effects
-The game uses neon colors for glow effects: `NEON_CYAN`, `NEON_PINK`, `NEON_PURPLE`, `NEON_ORANGE`, `NEON_GREEN`, `NEON_YELLOW`, `NEON_RED`.
+Modern dark "neon & glass" art direction (see the `SISTEMA VISUAL MODERNO` section of arkanoid_enhanced.py):
+- Background: deep vertical gradient, starfield, subtle dot grid, vignette, neon frame and a faint red "danger" strip at the bottom
+- UI: translucent glass panels, pill buttons with pulsing halo, HUD bar with stat blocks and power-up timers
+- Objects: gradient bricks with damage cracks and hit flash, metallic Vaus-style paddle with neon accent, radial-gradient ball with energy trail, glowing power-up capsules and laser bolts, glowing particle sparks
+- Typography: system font lookup (`get_font`) with letter-spaced titles and text glow
+- Performance: every expensive surface (gradients, panels, glows, text, ball sprite) is cached in module-level dicts; the scene renders to `world_surface` so `screen_shake` can offset the whole frame
 
 ## Key Classes
 
