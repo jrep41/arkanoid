@@ -785,15 +785,21 @@ class Paddle:
         screen.blit(shadow, (x + 2, y + 4))
 
         # Resplandor neón cian bajo la paleta
-        halo = make_panel_surface((width + 18, height + 14), (*ACCENT_CYAN, 34), radius + 7)
+        halo = make_panel_surface(
+            (width + 18, height + 14), (*ACCENT_CYAN, 34), radius + 7
+        )
         screen.blit(halo, (x - 9, y - 5))
 
         # Cuerpo metálico con degradado vertical
-        body = make_gradient_surface((width, height), (238, 245, 255), (66, 82, 116), radius)
+        body = make_gradient_surface(
+            (width, height), (238, 245, 255), (66, 82, 116), radius
+        )
         screen.blit(body, (x, y))
 
         # Extremos rojos con degradado (identidad Vaus)
-        cap = make_gradient_surface((end_cap_width, height), (255, 102, 102), (138, 22, 34), radius)
+        cap = make_gradient_surface(
+            (end_cap_width, height), (255, 102, 102), (138, 22, 34), radius
+        )
         screen.blit(cap, (x, y))
         screen.blit(cap, (x + width - end_cap_width, y))
 
@@ -1046,7 +1052,9 @@ class Ball:
             )
 
         # Halo de la pelota
-        draw_glow_dot(screen, glow_color, (int(self.x), int(self.y)), self.radius + 5, alpha=150)
+        draw_glow_dot(
+            screen, glow_color, (int(self.x), int(self.y)), self.radius + 5, alpha=150
+        )
 
         # Esfera con degradado radial (superficie pre-renderizada)
         screen.blit(
@@ -1225,13 +1233,17 @@ def make_panel_surface(size, color, radius=14, border_color=None):
     return _panel_cache[key]
 
 
-def draw_panel(screen, rect, color=(16, 22, 44, 180), radius=14, border_color=None, shadow=True):
+def draw_panel(
+    screen, rect, color=(16, 22, 44, 180), radius=14, border_color=None, shadow=True
+):
     """Dibuja un panel de cristal con una sombra suave debajo."""
     x, y, width, height = rect
     if shadow:
         shadow_surf = make_panel_surface((width, height), (0, 0, 0, 110), radius)
         screen.blit(shadow_surf, (x + 3, y + 5))
-    screen.blit(make_panel_surface((width, height), color, radius, border_color), (x, y))
+    screen.blit(
+        make_panel_surface((width, height), color, radius, border_color), (x, y)
+    )
 
 
 def make_glow_sprite(radius, color, alpha=255):
@@ -1362,7 +1374,9 @@ def draw_pill_button(screen, rect, label, color, pulse=0.0, font_size=22):
 
     # Halo exterior pulsante (se cuantiza para no llenar la caché)
     halo_alpha = 25 + 15 * round(min(1.0, max(0.0, pulse)) * 2)
-    halo = make_panel_surface((width + 28, height + 24), (*color, halo_alpha), radius + 12)
+    halo = make_panel_surface(
+        (width + 28, height + 24), (*color, halo_alpha), radius + 12
+    )
     screen.blit(halo, (x - 14, y - 12))
 
     # Cuerpo de cristal con borde del color del acento
@@ -1404,7 +1418,9 @@ def make_ball_sprite(size, destroyer_mode=False):
                 distance = math.hypot(offset_x, offset_y)
                 if distance <= radius:
                     edge = min(1.0, distance / radius)
-                    surf.set_at((x, y), lerp_color((255, 255, 255), edge_color, edge * 0.9))
+                    surf.set_at(
+                        (x, y), lerp_color((255, 255, 255), edge_color, edge * 0.9)
+                    )
         _ball_cache[key] = surf
     return _ball_cache[key]
 
@@ -1884,7 +1900,7 @@ class Game:
         # Variables del estado del juego
         self.score = 0  # Puntuación actual del jugador
         self.lives = (
-            10  # Vidas restantes del jugador (aumentadas para facilitar el juego)
+            3  # Vidas restantes del jugador (aumentadas para facilitar el juego)
         )
         self.level = 1  # Nivel actual del juego
         self.high_score = load_high_score()  # Puntuación máxima guardada
@@ -2092,7 +2108,7 @@ class Game:
                     elif self.game_state == "game_over":
                         # Reiniciar completamente el juego
                         self.score = 0
-                        self.lives = 10  # Reiniciar con 10 vidas
+                        self.lives = 3  # Reiniciar con 10 vidas
                         self.level = 1
                         BALL_SPEED = INITIAL_BALL_SPEED  # Resetear velocidad de pelota
                         self.reset_game()
@@ -2447,9 +2463,7 @@ class Game:
             self.paddle.expand()
             self.active_power_ups["expand"] = 600  # 10 segundos
         elif power_type == "multi_ball":
-            if (
-                    0 < len(self.balls) < 5
-            ):  # Verificar que hay pelotas y no exceder máximo
+            if 0 < len(self.balls) < 5:  # Verificar que hay pelotas y no exceder máximo
                 for _ in range(2):
                     new_ball = Ball(self.balls[0].x, self.balls[0].y)
                     angle = random.uniform(-math.pi / 4, math.pi / 4)
@@ -2525,7 +2539,10 @@ class Game:
             brightness = stars.randint(35, 135)
             star_size = 1 if stars.random() < 0.8 else 2
             pygame.draw.circle(
-                surface, (brightness, brightness, brightness + 15), (star_x, star_y), star_size
+                surface,
+                (brightness, brightness, brightness + 15),
+                (star_x, star_y),
+                star_size,
             )
 
         # Rejilla de puntos muy sutil en la zona de juego
@@ -2535,7 +2552,9 @@ class Game:
                 surface.set_at((grid_x, grid_y), grid_color)
 
         # Viñeta: oscurece los bordes para centrar la atención en el juego
-        vignette = pygame.Surface((WINDOW_WIDTH // 8, WINDOW_HEIGHT // 8), pygame.SRCALPHA)
+        vignette = pygame.Surface(
+            (WINDOW_WIDTH // 8, WINDOW_HEIGHT // 8), pygame.SRCALPHA
+        )
         for y in range(vignette.get_height()):
             for x in range(vignette.get_width()):
                 offset_x = x / vignette.get_width() - 0.5
@@ -2544,7 +2563,8 @@ class Game:
                 alpha = int(min(1.0, max(0.0, (distance - 0.3) * 2.6)) * 165)
                 vignette.set_at((x, y), (2, 3, 10, alpha))
         surface.blit(
-            pygame.transform.smoothscale(vignette, (WINDOW_WIDTH, WINDOW_HEIGHT)), (0, 0)
+            pygame.transform.smoothscale(vignette, (WINDOW_WIDTH, WINDOW_HEIGHT)),
+            (0, 0),
         )
 
         # Franja roja tenue en la zona de pérdida (borde inferior)
@@ -2557,13 +2577,25 @@ class Game:
         # Marco neón alrededor de la zona de juego
         frame = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         pygame.draw.rect(
-            frame, (*ACCENT_CYAN, 20), (1, 1, WINDOW_WIDTH - 2, WINDOW_HEIGHT - 2), 8, border_radius=14
+            frame,
+            (*ACCENT_CYAN, 20),
+            (1, 1, WINDOW_WIDTH - 2, WINDOW_HEIGHT - 2),
+            8,
+            border_radius=14,
         )
         pygame.draw.rect(
-            frame, (*ACCENT_CYAN, 55), (3, 3, WINDOW_WIDTH - 6, WINDOW_HEIGHT - 6), 3, border_radius=12
+            frame,
+            (*ACCENT_CYAN, 55),
+            (3, 3, WINDOW_WIDTH - 6, WINDOW_HEIGHT - 6),
+            3,
+            border_radius=12,
         )
         pygame.draw.rect(
-            frame, (185, 245, 255, 150), (3, 3, WINDOW_WIDTH - 6, WINDOW_HEIGHT - 6), 1, border_radius=12
+            frame,
+            (185, 245, 255, 150),
+            (3, 3, WINDOW_WIDTH - 6, WINDOW_HEIGHT - 6),
+            1,
+            border_radius=12,
         )
         surface.blit(frame, (0, 0))
 
@@ -2627,13 +2659,25 @@ class Game:
 
         # Línea decorativa con los dos colores de acento
         line_y = 176
-        pygame.draw.line(screen, ACCENT_CYAN, (center_x - 170, line_y), (center_x - 12, line_y), 2)
-        pygame.draw.line(screen, ACCENT_PINK, (center_x + 12, line_y), (center_x + 170, line_y), 2)
+        pygame.draw.line(
+            screen, ACCENT_CYAN, (center_x - 170, line_y), (center_x - 12, line_y), 2
+        )
+        pygame.draw.line(
+            screen, ACCENT_PINK, (center_x + 12, line_y), (center_x + 170, line_y), 2
+        )
 
         # Tarjeta de cristal con los controles
-        draw_panel(screen, (160, 196, 680, 300), (16, 22, 46, 185), 20, (70, 105, 170, 120))
+        draw_panel(
+            screen, (160, 196, 680, 300), (16, 22, 46, 185), 20, (70, 105, 170, 120)
+        )
         draw_text(
-            screen, "CONTROLES", 16, TEXT_DIM, (center_x, 226), align="center", spacing=10
+            screen,
+            "CONTROLES",
+            16,
+            TEXT_DIM,
+            (center_x, 226),
+            align="center",
+            spacing=10,
         )
 
         # Dos columnas de controles (tecla + descripción)
@@ -2646,16 +2690,25 @@ class Game:
             # Tecla con aspecto de cristal y borde neón
             label = render_text(key_name, 13, ACCENT_CYAN, bold=True, spacing=1)
             key_width = max(46, label.get_width() + 22)
-            keycap = make_panel_surface((key_width, 26), (20, 28, 56, 220), 8, (*ACCENT_CYAN, 130))
+            keycap = make_panel_surface(
+                (key_width, 26), (20, 28, 56, 220), 8, (*ACCENT_CYAN, 130)
+            )
             screen.blit(keycap, (key_x, key_y))
             screen.blit(
                 label,
-                (key_x + (key_width - label.get_width()) // 2, key_y + (26 - label.get_height()) // 2),
+                (
+                    key_x + (key_width - label.get_width()) // 2,
+                    key_y + (26 - label.get_height()) // 2,
+                ),
             )
 
             # Descripción del control
             draw_text(
-                screen, description, 17, TEXT_PRIMARY, (key_x + key_width + 12, key_y + 13),
+                screen,
+                description,
+                17,
+                TEXT_PRIMARY,
+                (key_x + key_width + 12, key_y + 13),
                 align="midleft",
             )
 
@@ -2671,10 +2724,24 @@ class Game:
         )
 
         # Puntuación máxima
-        draw_text(screen, "RÉCORD", 16, TEXT_DIM, (center_x - 14, 616), align="midright", spacing=5)
         draw_text(
-            screen, str(self.high_score), 26, NEON_YELLOW, (center_x + 14, 616),
-            align="midleft", bold=True, cached=False,
+            screen,
+            "RÉCORD",
+            16,
+            TEXT_DIM,
+            (center_x - 14, 616),
+            align="midright",
+            spacing=5,
+        )
+        draw_text(
+            screen,
+            str(self.high_score),
+            26,
+            NEON_YELLOW,
+            (center_x + 14, 616),
+            align="midleft",
+            bold=True,
+            cached=False,
         )
 
         # Información de la edición
@@ -2729,7 +2796,9 @@ class Game:
                 if ball.stuck_to_paddle:
                     bob = int(math.sin(pygame.time.get_ticks() * 0.01) * 3)
                     arrow_y = int(ball.y) - 32 + bob
-                    draw_glow_dot(screen, ACCENT_CYAN, (int(ball.x), arrow_y + 6), 8, alpha=120)
+                    draw_glow_dot(
+                        screen, ACCENT_CYAN, (int(ball.x), arrow_y + 6), 8, alpha=120
+                    )
                     pygame.draw.polygon(
                         screen,
                         ACCENT_CYAN,
@@ -2760,7 +2829,9 @@ class Game:
 
         # Velocidad actual de las pelotas
         if self.balls and not self.waiting_for_ball_release:
-            ball_speed = math.sqrt(self.balls[0].speed_x**2 + self.balls[0].speed_y**2)
+            ball_speed = math.sqrt(
+                self.balls[0].speed_x ** 2 + self.balls[0].speed_y ** 2
+            )
             speed_value = f"{ball_speed:.1f}"
         else:
             speed_value = "-"
@@ -2777,20 +2848,29 @@ class Game:
         # Patrón del nivel y récord (parte derecha)
         pattern_name = LEVEL_NAMES[(self.level - 1) % len(LEVEL_NAMES)].upper()
         draw_text(
-            screen, pattern_name, 13, TEXT_DIM, (WINDOW_WIDTH - 34, 16),
-            align="topright", spacing=3,
+            screen,
+            pattern_name,
+            13,
+            TEXT_DIM,
+            (WINDOW_WIDTH - 34, 16),
+            align="topright",
+            spacing=3,
         )
         draw_text(
-            screen, f"RÉCORD {self.high_score}", 18, NEON_YELLOW,
-            (WINDOW_WIDTH - 34, 30), align="topright", bold=True, cached=False,
+            screen,
+            f"RÉCORD {self.high_score}",
+            18,
+            NEON_YELLOW,
+            (WINDOW_WIDTH - 34, 30),
+            align="topright",
+            bold=True,
+            cached=False,
         )
 
     def _draw_stat(self, screen, x, label, value, value_color):
         """Dibuja una estadística de la barra superior (etiqueta + valor)."""
         draw_text(screen, label, 11, TEXT_DIM, (x, 13), spacing=3)
-        draw_text(
-            screen, value, 21, value_color, (x, 25), bold=True, cached=False
-        )
+        draw_text(screen, value, 21, value_color, (x, 25), bold=True, cached=False)
 
     def _draw_power_ups(self, screen):
         """Muestra los power-ups activos con una barra de tiempo restante."""
@@ -2821,9 +2901,14 @@ class Game:
             )
             screen.blit(body, (pill_x, pill_y))
             draw_text(
-                screen, symbol, 13, WHITE,
+                screen,
+                symbol,
+                13,
+                WHITE,
                 (pill_x + pill_width // 2, pill_y + pill_height // 2),
-                align="center", bold=True, shadow=True,
+                align="center",
+                bold=True,
+                shadow=True,
             )
 
             # Barra de tiempo restante bajo la cápsula
@@ -2855,12 +2940,23 @@ class Game:
 
         # Título y aviso
         draw_text(
-            screen, "PAUSA", 52, ACCENT_CYAN, (center_x, center_y - 45),
-            align="center", bold=True, spacing=10, glow=2,
+            screen,
+            "PAUSA",
+            52,
+            ACCENT_CYAN,
+            (center_x, center_y - 45),
+            align="center",
+            bold=True,
+            spacing=10,
+            glow=2,
         )
         draw_text(
-            screen, "El juego está esperando", 19, TEXT_DIM,
-            (center_x, center_y + 10), align="center",
+            screen,
+            "El juego está esperando",
+            19,
+            TEXT_DIM,
+            (center_x, center_y + 10),
+            align="center",
         )
 
         # Botón de reanudar
@@ -2874,7 +2970,9 @@ class Game:
             font_size=18,
         )
 
-    def draw_result_screen(self, screen, title, title_color, rows, button_label, badge=None):
+    def draw_result_screen(
+        self, screen, title, title_color, rows, button_label, badge=None
+    ):
         """
         Pantalla de resultados (derrota o victoria): fondo atenuado,
         tarjeta de cristal con las estadísticas y un botón pulsante.
@@ -2903,20 +3001,38 @@ class Game:
         ):
             title_size -= 2
         draw_text(
-            screen, title, title_size, title_color, (center_x, center_y - 112),
-            align="center", bold=True, spacing=5, glow=2,
+            screen,
+            title,
+            title_size,
+            title_color,
+            (center_x, center_y - 112),
+            align="center",
+            bold=True,
+            spacing=5,
+            glow=2,
         )
 
         # Filas de estadísticas (etiqueta a la izquierda, valor a la derecha)
         row_y = center_y - 44
         for label, value, value_color in rows:
             draw_text(
-                screen, label, 14, TEXT_DIM, (center_x - 215, row_y + 12),
-                align="midleft", spacing=4,
+                screen,
+                label,
+                14,
+                TEXT_DIM,
+                (center_x - 215, row_y + 12),
+                align="midleft",
+                spacing=4,
             )
             draw_text(
-                screen, value, 25, value_color, (center_x + 215, row_y + 12),
-                align="midright", bold=True, cached=False,
+                screen,
+                value,
+                25,
+                value_color,
+                (center_x + 215, row_y + 12),
+                align="midright",
+                bold=True,
+                cached=False,
             )
             pygame.draw.line(
                 screen,
@@ -2930,8 +3046,15 @@ class Game:
         # Insignia de récord (opcional)
         if badge:
             draw_text(
-                screen, badge, 17, NEON_YELLOW, (center_x, center_y + 52),
-                align="center", bold=True, spacing=4, glow=1,
+                screen,
+                badge,
+                17,
+                NEON_YELLOW,
+                (center_x, center_y + 52),
+                align="center",
+                bold=True,
+                spacing=4,
+                glow=1,
             )
 
         # Botón de acción

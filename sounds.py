@@ -47,7 +47,7 @@ def generate_beep(frequency, duration, volume=0.3, fadeout=50):
         samples.append(int(value * volume * 32767))
 
     # Crear array de bytes (16-bit, mono)
-    sound_bytes = struct.pack(f'<{n_samples}h', *samples)
+    sound_bytes = struct.pack(f"<{n_samples}h", *samples)
 
     pygame.mixer.init()
     sound = pygame.mixer.Sound(buffer=sound_bytes)
@@ -84,7 +84,7 @@ def generate_tone(frequency, duration, volume=0.25, frequency_end=None):
 
         samples.append(int(value * volume * 32767))
 
-    sound_bytes = struct.pack(f'<{n_samples}h', *samples)
+    sound_bytes = struct.pack(f"<{n_samples}h", *samples)
     return pygame.mixer.Sound(buffer=sound_bytes)
 
 
@@ -101,7 +101,7 @@ def generate_noise_burst(duration, volume=0.2):
     fade_samples = max(1, int(sample_rate * 0.03))
 
     for i in range(n_samples):
-        value = (import_random() * 2 - 1)
+        value = import_random() * 2 - 1
 
         # Fadeout
         if i > n_samples - fade_samples:
@@ -109,13 +109,14 @@ def generate_noise_burst(duration, volume=0.2):
 
         samples.append(int(value * volume * 32767))
 
-    sound_bytes = struct.pack(f'<{n_samples}h', *samples)
+    sound_bytes = struct.pack(f"<{n_samples}h", *samples)
     return pygame.mixer.Sound(buffer=sound_bytes)
 
 
 def import_random():
     """Wrapper para random para uso interno."""
     import random
+
     return random.random()
 
 
@@ -151,7 +152,7 @@ def generate_arpeggio(frequencies, note_duration, volume=0.3):
 
             all_samples.append(int(value * volume * 32767))
 
-    sound_bytes = struct.pack(f'<{len(all_samples)}h', *all_samples)
+    sound_bytes = struct.pack(f"<{len(all_samples)}h", *all_samples)
     return pygame.mixer.Sound(buffer=sound_bytes)
 
 
@@ -187,36 +188,36 @@ class SoundManager:
             return
 
         # Sonido al rebotar la pelota en la paleta (440 Hz, 80ms)
-        self.sounds['paddle_hit'] = generate_tone(440, 80, volume=0.25)
+        self.sounds["paddle_hit"] = generate_tone(440, 80, volume=0.25)
 
         # Sonido al rebotar en un ladrillo (523 Hz, 60ms)
-        self.sounds['brick_hit'] = generate_tone(523, 60, volume=0.2)
+        self.sounds["brick_hit"] = generate_tone(523, 60, volume=0.2)
 
         # Sonido al destruir un ladrillo (ruido)
-        self.sounds['brick_destroy'] = generate_noise_burst(100, volume=0.25)
+        self.sounds["brick_destroy"] = generate_noise_burst(100, volume=0.25)
 
         # Sonido de power-up (sweep 200->800 Hz)
-        self.sounds['power_up'] = generate_sweep(200, 800, 200, volume=0.3)
+        self.sounds["power_up"] = generate_sweep(200, 800, 200, volume=0.3)
 
         # Sonido al perder una vida (sweep descendente)
-        self.sounds['life_lost'] = generate_sweep(300, 80, 400, volume=0.4)
+        self.sounds["life_lost"] = generate_sweep(300, 80, 400, volume=0.4)
 
         # Sonido de game over
-        self.sounds['game_over'] = generate_sweep(400, 80, 600, volume=0.4)
+        self.sounds["game_over"] = generate_sweep(400, 80, 600, volume=0.4)
 
         # Sonido de victoria (arpegio C-E-G-C)
         victory_notes = [523, 659, 784, 1047]
-        self.sounds['victory'] = generate_arpeggio(victory_notes, 150, volume=0.3)
+        self.sounds["victory"] = generate_arpeggio(victory_notes, 150, volume=0.3)
 
         # Sonido de láser (880 Hz, 50ms)
-        self.sounds['laser'] = generate_tone(880, 50, volume=0.15)
+        self.sounds["laser"] = generate_tone(880, 50, volume=0.15)
 
         # Sonido de nivel completado
         level_notes = [392, 440, 494, 523, 587, 659, 784]
-        self.sounds['level_complete'] = generate_arpeggio(level_notes, 100, volume=0.25)
+        self.sounds["level_complete"] = generate_arpeggio(level_notes, 100, volume=0.25)
 
         # Sonido de bola multibalón
-        self.sounds['multi_ball'] = generate_sweep(300, 600, 150, volume=0.25)
+        self.sounds["multi_ball"] = generate_sweep(300, 600, 150, volume=0.25)
 
     def play(self, sound_name):
         """Reproduce un sonido por nombre."""
