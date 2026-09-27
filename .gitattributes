@@ -1,0 +1,40 @@
+# Normalización de finales de línea y detección de binarios.
+#
+# Este proyecto se compila en Linux (buildozer/python-for-android) y se edita
+# en entorno Unix, por lo que los archivos de texto se guardan SIEMPRE con LF
+# (tanto en el repositorio como en la copia de trabajo). Así se evitan los
+# avisos de Git del tipo "CRLF will be replaced by LF" y los scripts de shell
+# funcionan (un shebang #!/usr/bin/env bash falla si el archivo tiene CRLF).
+#
+# `text=auto` deja que Git detecte qué archivos son de texto; `eol=lf` fuerza
+# LF. Los binarios se marcan explícitamente para que Git nunca los convierta.
+
+* text=auto eol=lf
+
+# Archivos binarios: conservar bytes exactos, sin conversión de finales de línea
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.jar   binary
+*.apk   binary
+*.aab   binary
+*.jks   binary
+*.keystore binary
+
+# Scripts de shell: LF obligatorio (el shebang falla con CRLF)
+*.sh text eol=lf
+
+# Código y configuración del proyecto
+*.py   text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
+*.spec text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
