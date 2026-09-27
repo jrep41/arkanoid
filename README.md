@@ -55,7 +55,7 @@ Un juego completo de Arkanoid desarrollado en Python usando pygame con caracter�
 1. Ejecuta el juego:
 
    ```bash
-   python arkanoid_enhanced.py
+   python main.py
    ```
 
 2. **Controles**:
@@ -72,6 +72,20 @@ Un juego completo de Arkanoid desarrollado en Python usando pygame con caracter�
    - Destruye todos los ladrillos para completar el nivel
    - Recoge power-ups para obtener ventajas especiales
    - Progresa a través de los 36 niveles únicos
+
+## 📱 Android (APK)
+
+El juego se puede empaquetar como APK con Buildozer. En táctil se controla
+arrastrando el dedo (paleta), con toques rápidos (lanzar/disparar) y con los
+botones inferiores del mueble (sonido, bola extra y pausa):
+
+```bash
+source .venv/bin/activate
+buildozer android debug
+```
+
+El APK queda en `bin/`. Instrucciones completas, requisitos y solución de
+problemas en [`ANDROID.md`](ANDROID.md).
 
 ## 🛠️ Mecánicas Avanzadas
 

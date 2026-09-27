@@ -14,6 +14,12 @@ import struct
 
 import pygame
 
+# Configurar el mixer ANTES de inicializarlo: los buffers que generan las
+# funciones de este módulo son 22050 Hz / 16 bits / mono. Si el mixer arranca
+# con otros valores (p. ej. 44100 Hz estéreo) pygame interpreta los bytes "tal
+# cual" y los sonidos salen acelerados y con el tono alterado.
+pygame.mixer.pre_init(22050, -16, 1, 512)
+
 # Inicializar mixer si no está ya inicializado
 try:
     pygame.mixer.init()
