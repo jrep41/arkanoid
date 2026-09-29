@@ -41,6 +41,35 @@ IS_TOUCH = IS_ANDROID or os.environ.get("ARKANOID_TOUCH") == "1"
 if not IS_ANDROID:
     os.environ.setdefault("SDL_AUDIODRIVER", "pulseaudio")
 
+# RENDERIZADO ACELERADO EN ANDROID
+# ---------------------------------
+# Con pygame.SCALED, SDL renderiza el lienzo lógico (1280x860) y lo escala a la
+# pantalla real (p. ej. 2340x1080). Si SDL usa su renderer por SOFTWARE, TODOS
+# los blits con canal alfa (paneles de cristal, halos, fondo del mueble...) se
+# calculan en la CPU píxel a píxel: medido en un arm64 real, un frame tardaba
+# ~1200 ms (menos de 1 FPS). Forzando el renderer de OpenGL ES, el blending lo
+# hace la GPU y el frame baja a una fracción de eso.
+#
+# Debe fijarse ANTES de pygame.display.set_mode() (o incluso de pygame.init()).
+# Se respeta un valor ya definido por el usuario para poder probar otros
+# renderers (p. ej. SDL_RENDER_DRIVER=software) sin tocar el código.
+if IS_ANDROID:
+    os.environ.setdefault("SDL_RENDER_DRIVER", "opengles2")
+
+# ALPHA BLIT Y NEON EN ARM (regresión conocida de SDL2/pygame-ce)
+# --------------------------------------------------------------
+# SDL desactivó por defecto sus blitters SIMD para ARM (commit 363fd52, 2.0.14)
+# y aún no los ha reactivado. En ARM (Raspberry Pi, Android) eso hace que el
+# blit con alfa por píxel caiga al camino C escalar. Medido en el Exynos 9611:
+#   blit alfa 1280x860 por el blitter por defecto de pygame-ce = ~445 ms
+#   el mismo blit con el blitter de SDL (BLEND_ALPHA_SDL2)          = ~22 ms
+# Es una regresión documentada (pygame-ce #1469, SDL #4484) que afecta a todo
+# ARM, no a este proyecto. PYGAME_BLEND_ALPHA_SDL2 hace que pygame-ce use el
+# blitter de SDL en vez del suyo. Se aplica solo en Android para no alterar el
+# resultado visual en escritorio (los dos blitters difieren levemente).
+if IS_ANDROID:
+    os.environ.setdefault("PYGAME_BLEND_ALPHA_SDL2", "1")
+
 # Inicializar Pygame - SIEMPRE necesario antes de usar pygame
 # OJO: pre_init debe ir ANTES de pygame.init() para que el mixer quede con el
 # mismo formato con el que sounds.py genera sus buffers (22050 Hz, 16 bits, mono).
@@ -1265,6 +1294,63 @@ _panel_cache = {}  # Caché de paneles de cristal
 _glow_cache = {}  # Caché de halos neón
 _text_cache = {}  # Caché de textos renderizados
 _ball_cache = {}  # Caché de la esfera de la pelota
+_overlay_cache = {}  # Caché de velos a pantalla completa (pausa / resultado)
+
+
+def get_overlay_surface(color):
+    """
+    Devuelve un velo translúcido a pantalla completa cacheado.
+
+    Crear la superficie + ``convert_alpha()`` + ``fill()`` en cada frame es
+    caro (sobre todo en Android). Como el color del velo es constante, se
+    construye una sola vez y se reutiliza.
+    """
+    key = tuple(color)
+    if key not in _overlay_cache:
+        surf = optimize_surface(
+            pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        )
+        surf.fill(key)
+        _overlay_cache[key] = surf
+    return _overlay_cache[key]
+
+
+def optimize_surface(surf):
+    """
+    Convierte una superficie al formato de píxeles óptimo de la pantalla.
+
+    Es IMPRESCINDIBLE para el rendimiento en Android. Una superficie creada con
+    ``pygame.Surface(..., pygame.SRCALPHA)`` usa un formato genérico (32 bits
+    ARGB) que no coincide con el del display. Si no se convierte, SDL tiene que
+    traducir el formato píxel a píxel en CADA blit, lo que en un dispositivo
+    arm64 de gama media hace que un solo blit de pantalla completa tarde más de
+    100 ms (medido: el juego bajaba a ~1 FPS).
+
+    Con ``convert_alpha()`` la superficie queda en el formato nativo y el blit
+    pasa a ser una copia/blending directo (decenas de veces más rápido).
+
+    Debe llamarse DESPUÉS de ``pygame.display.set_mode()``.
+    """
+    try:
+        return surf.convert_alpha()
+    except pygame.error:
+        # Sin modo de vídeo inicializado (p. ej. en pruebas headless) se
+        # devuelve la superficie original sin convertir.
+        return surf
+
+
+def optimize_opaque_surface(surf):
+    """
+    Como ``optimize_surface`` pero para superficies SIN canal alfa.
+
+    ``convert()`` las adapta al formato del display manteniéndolas opacas, de
+    modo que el blit es una copia directa (mucho más rápida que un blit con
+    alfa por píxel, sobre todo en ARM).
+    """
+    try:
+        return surf.convert()
+    except pygame.error:
+        return surf
 
 
 def get_font(size, bold=False, italic=False):
@@ -1325,7 +1411,7 @@ def make_gradient_surface(size, top_color, bottom_color, radius=0, gloss=True):
             gloss_color = lerp_color(top_color, (255, 255, 255), 0.5)
             pygame.draw.line(surf, gloss_color, (radius, 1), (width - radius - 1, 1))
 
-        _gradient_cache[key] = surf
+        _gradient_cache[key] = optimize_surface(surf)
     return _gradient_cache[key]
 
 
@@ -1356,7 +1442,7 @@ def make_panel_surface(size, color, radius=14, border_color=None):
                 highlight = lerp_color(tuple(border_color[:3]), (255, 255, 255), 0.45)
                 pygame.draw.line(surf, highlight, (radius, 1), (width - radius - 1, 1))
 
-        _panel_cache[key] = surf
+        _panel_cache[key] = optimize_surface(surf)
     return _panel_cache[key]
 
 
@@ -1392,7 +1478,7 @@ def make_glow_sprite(radius, color, alpha=255):
                 if distance <= radius:
                     falloff = 1.0 - distance / radius
                     surf.set_at((x, y), (*bright, int(alpha * falloff * falloff)))
-        _glow_cache[key] = surf
+        _glow_cache[key] = optimize_surface(surf)
     return _glow_cache[key]
 
 
@@ -1546,7 +1632,7 @@ def make_streak_surface(width, height, color, reverse=False):
                 ratio = 1.0 - ratio
             alpha = int(235 * (ratio**1.6))
             pygame.draw.line(surf, (*color, alpha), (x, 0), (x, height))
-        _gradient_cache[key] = surf
+        _gradient_cache[key] = optimize_surface(surf)
     return _gradient_cache[key]
 
 
@@ -1599,7 +1685,7 @@ def render_styled_title(text, size, color_a, color_b, glow_color, spacing=3):
             surf.blit(glyph, (cursor, margin))
             cursor += glyph.get_width() + spacing
 
-        _text_cache[key] = surf
+        _text_cache[key] = optimize_surface(surf)
     return _text_cache[key]
 
 
@@ -1638,7 +1724,7 @@ def make_sunset_surface(diameter):
             gap += 1.5
             band += 1.0
 
-        _gradient_cache[key] = surf
+        _gradient_cache[key] = optimize_surface(surf)
     return _gradient_cache[key]
 
 
@@ -1658,7 +1744,7 @@ def make_horizon_surface(width, height, color):
                 alpha = int(230 * fall_x * fall_y)
                 if alpha > 0:
                     surf.set_at((x, y), (*color, alpha))
-        _gradient_cache[key] = surf
+        _gradient_cache[key] = optimize_surface(surf)
     return _gradient_cache[key]
 
 
@@ -1681,7 +1767,7 @@ def make_ball_sprite(size, destroyer_mode=False):
                     surf.set_at(
                         (x, y), lerp_color((255, 255, 255), edge_color, edge * 0.9)
                     )
-        _ball_cache[key] = surf
+        _ball_cache[key] = optimize_surface(surf)
     return _ball_cache[key]
 
 
@@ -1810,7 +1896,7 @@ class Brick:
             1,
         )
 
-        self.surface = surf
+        self.surface = optimize_surface(surf)
 
     def hit(self):
         """
@@ -2175,7 +2261,12 @@ class Game:
         # como ventana normal. En ambos casos pygame.SCALED escala el lienzo
         # lógico (SCREEN_WIDTH x SCREEN_HEIGHT) manteniendo la proporción, de
         # modo que todas las coordenadas del juego siguen siendo válidas.
-        display_flags = pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.SCALED
+        #
+        # NO usar HWSURFACE/DOUBLEBUF: son flags obsoletos que, junto a SCALED,
+        # hacen que SDL use su renderer por SOFTWARE (blending alfa en CPU, muy
+        # lento en Android). Dejando que SDL elija (con SDL_RENDER_DRIVER=
+        # opengles2) el renderizado va por GPU.
+        display_flags = pygame.SCALED
         if IS_ANDROID:
             display_flags |= pygame.FULLSCREEN
         try:
@@ -2196,10 +2287,17 @@ class Game:
         # Superficie de fondo cacheada (se dibuja una sola vez por rendimiento)
         self.background_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.background_surface.fill(BLACK)
+        # Opaca: convert() la adapta al formato del display (blit rápido)
+        try:
+            self.background_surface = self.background_surface.convert()
+        except pygame.error:
+            pass
 
-        # Superficie intermedia de la zona de juego (permite aplicar el temblor)
-        self.world_surface = pygame.Surface(
-            (WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA
+        # Superficie intermedia de la zona de juego (permite aplicar el temblor).
+        # Se convierte al formato del display para que los blits (con alfa) no
+        # tengan que traducir el formato píxel a píxel en cada frame.
+        self.world_surface = optimize_surface(
+            pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         )
 
         # Variables del estado del juego
@@ -2282,6 +2380,10 @@ class Game:
         # Construir el fondo synthwave (banner, sol, rejilla y mueble)
         # una sola vez por rendimiento
         self.build_background()
+
+        # --- BENCHMARK DE BLITS (diagnóstico; activar con ARK_BENCH=1) ---
+        if os.environ.get("ARK_BENCH") == "1":
+            self._benchmark_blits()
 
         # Inicializar el juego
         self.reset_game()
@@ -2949,8 +3051,9 @@ class Game:
 
             for ball in self.balls[1:]:  # Empezar desde la segunda pelota
                 current_speed = math.sqrt(ball.speed_x**2 + ball.speed_y**2)
-                if current_speed > 0 and abs(current_speed - reference_speed) > 0.1:
-                    # Ajustar velocidad si hay diferencia significativa (>0.1 píxeles/frame)
+                if (
+                    current_speed > 0
+                ):  # Evitar división por cero si la pelota está quieta
                     factor = reference_speed / current_speed
                     ball.speed_x *= factor
                     ball.speed_y *= factor
@@ -3109,13 +3212,131 @@ class Game:
         self.build_field_background()
         self.build_cabinet()
 
-        # Máscara para las esquinas redondeadas de la pantalla del mueble
-        self.field_mask = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        # Máscara para las esquinas redondeadas de la pantalla del mueble.
+        # Solo se aplica a las 4 esquinas (16x16 px), NO a toda la superficie:
+        # BLEND_RGBA_MULT no usa el blitter SIMD de SDL y en ARM multiplicar
+        # 540x640 px cada frame costaba ~68 ms. Multiplicar 4 trozos de 16x16
+        # (1024 px en total) es prácticamente gratis y el resultado es idéntico.
+        self.field_mask = optimize_surface(
+            pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        )
         pygame.draw.rect(
             self.field_mask,
             (255, 255, 255, 255),
             (0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
             border_radius=16,
+        )
+        # Regiones de esquina que hay que recortar (radio de la máscara = 16)
+        _corner = 16
+        self.field_corner_rects = [
+            pygame.Rect(0, 0, _corner, _corner),
+            pygame.Rect(WINDOW_WIDTH - _corner, 0, _corner, _corner),
+            pygame.Rect(0, WINDOW_HEIGHT - _corner, _corner, _corner),
+            pygame.Rect(
+                WINDOW_WIDTH - _corner, WINDOW_HEIGHT - _corner, _corner, _corner
+            ),
+        ]
+
+    def _benchmark_blits(self):
+        """
+        DIAGNÓSTICO TEMPORAL: mide el coste real de distintos tipos de blit.
+
+        Sirve para averiguar si la lentitud viene del relleno/composición por
+        CPU, del presentado de frame o de otra cosa, midiendo operaciones
+        aisladas sobre la pantalla real del dispositivo.
+        """
+        import time as _t
+
+        print(
+            f"[BENCH] info: driver={pygame.display.get_driver()} "
+            f"screen={self.screen.get_size()} "
+            f"screen_flags={self.screen.get_flags()} "
+            f"screen_bitsize={self.screen.get_bitsize()}",
+            flush=True,
+        )
+
+        W, H = SCREEN_WIDTH, SCREEN_HEIGHT
+        opaque = pygame.Surface((W, H))  # sin alfa
+        alpha_full = pygame.Surface((W, H), pygame.SRCALPHA)
+        alpha_full.fill((255, 0, 0, 128))
+        small_alpha = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        small_alpha.fill((255, 0, 0, 128))
+
+        def _time(fn, n=10):
+            fn()  # calentar
+            t0 = _t.perf_counter()
+            for _ in range(n):
+                fn()
+            return (_t.perf_counter() - t0) / n * 1000.0
+
+        # Formatos de máscara de bits (indican la profundidad/orden real)
+        scr = self.screen
+        print(
+            f"[BENCH] screen masks={scr.get_masks()} "
+            f"flags={scr.get_flags()} alpha={scr.get_alpha()} "
+            f"bitsize={scr.get_bitsize()}",
+            flush=True,
+        )
+
+        # ¿Funciona convert_alpha() en Android?
+        conv = alpha_full.convert_alpha()
+        print(
+            f"[BENCH] convert_alpha: orig_bitsize={alpha_full.get_bitsize()} "
+            f"conv_bitsize={conv.get_bitsize()} conv_flags={conv.get_flags()} "
+            f"conv_masks={conv.get_masks()}",
+            flush=True,
+        )
+
+        # Superficie SIN alfa pero con colorkey (blending barato)
+        colorkey = pygame.Surface((W, H))
+        colorkey.fill((255, 0, 0))
+        colorkey.set_colorkey((0, 0, 0))
+
+        # Destinos alternativos para aislar si el problema es la pantalla
+        dst_plain = pygame.Surface((W, H))
+        dst_alpha = pygame.Surface((W, H), pygame.SRCALPHA)
+
+        print(
+            f"[BENCH] alpha_surf masks={alpha_full.get_masks()} "
+            f"flags={alpha_full.get_flags()}",
+            flush=True,
+        )
+
+        print(
+            "[BENCH2] ms/op: "
+            f"alpha_orig={_time(lambda: scr.blit(alpha_full, (0, 0))):7.1f} "
+            f"alpha_converted={_time(lambda: scr.blit(conv, (0, 0))):7.1f} "
+            f"colorkey={_time(lambda: scr.blit(colorkey, (0, 0))):7.1f} "
+            f"alpha_to_plain={_time(lambda: dst_plain.blit(alpha_full, (0, 0))):7.1f} "
+            f"alpha_to_alpha={_time(lambda: dst_alpha.blit(alpha_full, (0, 0))):7.1f}",
+            flush=True,
+        )
+
+        # --- Discriminante clave: forzar los caminos SIMD de "blend" ---
+        # blit_blend_rgba_add_sse2 / blit_blend_rgb_add_sse2 son codigo SIMD
+        # puro (~15 KB). Si van rapido, el SIMD funciona y el problema esta en
+        # el despacho del blend alfa normal.
+        blanket = pygame.Surface((W, H), pygame.SRCALPHA)
+        blanket.fill((255, 0, 0, 255))
+        blanket.set_alpha(200)  # src_blanket_alpha != 255
+        print(
+            "[BENCH3] ms/op (discriminante SIMD): "
+            f"rgba_add={_time(lambda: scr.blit(alpha_full, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)):7.1f} "
+            f"rgb_add={_time(lambda: scr.blit(opaque, (0, 0), special_flags=pygame.BLEND_RGB_ADD)):7.1f} "
+            f"rgba_min={_time(lambda: scr.blit(alpha_full, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)):7.1f} "
+            f"alpha_sdl2={_time(lambda: scr.blit(alpha_full, (0, 0), special_flags=pygame.BLEND_ALPHA_SDL2)):7.1f} "
+            f"blanket_alpha={_time(lambda: scr.blit(blanket, (0, 0))):7.1f}",
+            flush=True,
+        )
+
+        print(
+            "[BENCH] ms/op: "
+            f"fill_screen={_time(lambda: self.screen.fill((0, 0, 0))):6.1f} "
+            f"blit_opaque={_time(lambda: self.screen.blit(opaque, (0, 0))):6.1f} "
+            f"blit_alpha_full={_time(lambda: self.screen.blit(alpha_full, (0, 0))):6.1f} "
+            f"blit_alpha_small={_time(lambda: self.screen.blit(small_alpha, (0, 0))):6.1f} "
+            f"flip={_time(lambda: pygame.display.flip()):6.1f}",
+            flush=True,
         )
 
     def build_field_background(self):
@@ -3126,7 +3347,10 @@ class Game:
         """
         width, height = WINDOW_WIDTH, WINDOW_HEIGHT
         horizon_y = 372
-        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        # Opaco (sin SRCALPHA): el fondo cubre toda la zona de juego, así que
+        # no necesita canal alfa. Un blit opaco es una copia rápida, mientras
+        # que uno con alfa por píxel es mucho más lento en ARM.
+        surface = pygame.Surface((width, height))
 
         # Cielo: degradado azul violáceo profundo
         surface.blit(
@@ -3190,7 +3414,7 @@ class Game:
         # Línea del horizonte
         pygame.draw.line(surface, (255, 226, 60), (0, horizon_y), (width, horizon_y), 1)
 
-        self.field_background = surface
+        self.field_background = optimize_opaque_surface(surface)
 
     def build_cabinet(self):
         """Pre-renderiza el marco del mueble: resplandor rosa, bisel y línea amarilla."""
@@ -3220,26 +3444,60 @@ class Game:
             border_radius=20,
         )
 
-        self.cabinet_surface = surf
+        self.cabinet_surface = optimize_surface(surf)
 
     def draw_background(self):
         """Dibuja el fondo completo cacheado (cielo, banner y decorado)."""
         self.screen.blit(self.background_surface, (0, 0))
 
     def draw(self):
+        # --- DIAGNÓSTICO: modo mínimo (activar con ARK_PERF_MINIMAL=1) ---
+        if os.environ.get("ARK_PERF_MINIMAL") == "1":
+            self.screen.fill((10, 10, 30))
+            return
+
+        # La medición por secciones solo se activa con ARK_PERF=1.
+        perf_on = os.environ.get("ARK_PERF") == "1"
+        if perf_on:
+            import time as _t
+
+            _m = globals().setdefault("_PERF_DRAW", {})
+
+            def _mark(name, t0):
+                dt = (_t.perf_counter() - t0) * 1000.0
+                _m[name] = _m.get(name, 0.0) + dt
+
+            _a = _t.perf_counter()
         # El fondo completo (cielo, banner y decorado) está cacheado; la zona
         # de juego se dibuja en una superficie intermedia para poder aplicar
         # el temblor de pantalla cuando la pelota golpea con fuerza
         self.screen.blit(self.background_surface, (0, 0))
+        if perf_on:
+            _b = _t.perf_counter()
+            _mark("bg_blit", _a)
 
         world = self.world_surface
         world.blit(self.field_background, (0, 0))
 
         if self.game_state != "menu":
             self.draw_game(world)
+        if perf_on:
+            _c = _t.perf_counter()
+            _mark("world_content", _b)
 
-        # Recorte de esquinas redondeadas de la pantalla del mueble
-        world.blit(self.field_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        # Recorte de esquinas redondeadas de la pantalla del mueble.
+        # Se aplica SOLO a las 4 esquinas (ver build_background): multiplicar
+        # toda la superficie con BLEND_RGBA_MULT es muy lento en ARM.
+        for corner in self.field_corner_rects:
+            world.blit(
+                self.field_mask,
+                corner.topleft,
+                corner,
+                special_flags=pygame.BLEND_RGBA_MULT,
+            )
+        if perf_on:
+            _d = _t.perf_counter()
+            _mark("field_mask", _c)
 
         # Temblor de pantalla: desplaza la escena un par de píxeles al azar
         offset_x = offset_y = 0
@@ -3249,11 +3507,23 @@ class Game:
             offset_y = random.randint(-shake_power, shake_power)
 
         self.screen.blit(world, (PLAY_OFFSET_X + offset_x, PLAY_OFFSET_Y + offset_y))
+        if perf_on:
+            _e = _t.perf_counter()
+            _mark("world_blit+shake", _d)
 
         # Marco del mueble, paneles laterales y botones inferiores
         self.screen.blit(self.cabinet_surface, (CABINET_RECT[0], CABINET_RECT[1]))
+        if perf_on:
+            _f = _t.perf_counter()
+            _mark("cabinet", _e)
         self.draw_side_panels(self.screen)
+        if perf_on:
+            _g = _t.perf_counter()
+            _mark("side_panels", _f)
         self.draw_bottom_buttons(self.screen)
+        if perf_on:
+            _h = _t.perf_counter()
+            _mark("bottom_buttons", _g)
 
         # Capas de estado: menú, pausa o pantallas de resultado
         if self.game_state == "menu":
@@ -3264,8 +3534,11 @@ class Game:
             self.draw_game_over(self.screen)
         elif self.game_state == "victory":
             self.draw_victory(self.screen)
+        if perf_on:
+            _mark("state_layer", _h)
 
-        pygame.display.flip()
+        # NOTA: el pygame.display.flip() se hace en run() para poder medir
+        # por separado el coste del presentado de frame (diagnóstico temporal).
 
     def draw_menu(self, screen):
         """Dibuja la tarjeta de controles del menú sobre la pantalla del mueble."""
@@ -3614,7 +3887,7 @@ class Game:
                 ("P", "pausa"),
                 ("B", "bola extra"),
                 ("N", "sonido"),
-        ]
+            ]
         for index, (key_name, description) in enumerate(rows):
             row_y = 634 + index * 21
             label = render_text(key_name, 10, ACCENT_CYAN, bold=True, spacing=1)
@@ -3662,10 +3935,8 @@ class Game:
 
     def draw_pause(self, screen):
         """Dibuja el aviso de pausa con una tarjeta de cristal."""
-        # Fondo atenuado
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((10, 4, 26, 190))
-        screen.blit(overlay, (0, 0))
+        # Fondo atenuado (velo cacheado, no se recrea cada frame)
+        screen.blit(get_overlay_surface((10, 4, 26, 190)), (0, 0))
 
         center_x, center_y = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
 
@@ -3719,10 +3990,8 @@ class Game:
         Pantalla de resultados (derrota o victoria): fondo atenuado,
         tarjeta de cristal con las estadísticas y un botón pulsante.
         """
-        # Fondo atenuado
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((10, 4, 26, 205))
-        screen.blit(overlay, (0, 0))
+        # Fondo atenuado (velo cacheado, no se recrea cada frame)
+        screen.blit(get_overlay_surface((10, 4, 26, 205)), (0, 0))
 
         center_x, center_y = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
 
@@ -3849,11 +4118,84 @@ class Game:
 
     def run(self):
         running = True
+        # --- MEDICIÓN DE RENDIMIENTO (activar con ARK_PERF=1) ---
+        # Cuando está apagada no se llama a perf_counter ni se imprime nada,
+        # para no penalizar el rendimiento en el dispositivo.
+        _perf_on = os.environ.get("ARK_PERF") == "1"
+        if _perf_on:
+            import time as _time
+
+            try:
+                _info = pygame.display.Info()
+                print(
+                    f"[PERF] driver={pygame.display.get_driver()} "
+                    f"surface={_info.current_w}x{_info.current_h} "
+                    f"bpp={_info.bitsize} hw={_info.hw} wm={_info.wm}",
+                    flush=True,
+                )
+            except Exception as _exc:  # noqa: BLE001
+                print(f"[PERF] info error: {_exc}", flush=True)
+
+            _frame_count = 0
+            _report_interval = 30
+            _t_accum = 0.0
+            _dt_max = 0.0
+            _wall_start = _time.perf_counter()
+
         while running:
+            if _perf_on:
+                _t0 = _time.perf_counter()
             running = self.handle_events()
+            if _perf_on:
+                _t1 = _time.perf_counter()
             self.update()
+            if _perf_on:
+                _t2 = _time.perf_counter()
             self.draw()
+            if _perf_on:
+                _t3 = _time.perf_counter()
+            pygame.display.flip()
+            if _perf_on:
+                _t4 = _time.perf_counter()
             self.clock.tick(60)
+            if not _perf_on:
+                continue
+            _t5 = _time.perf_counter()
+
+            _frame_count += 1
+            _t_accum += _t5 - _t0
+            _dt_max = max(_dt_max, _t5 - _t0)
+            if _frame_count >= _report_interval:
+                avg_ms = _t_accum / _report_interval * 1000.0
+                wall_ms = (_time.perf_counter() - _wall_start) * 1000.0
+                # Tiempo total transcurrido (wall) menos lo que duran los frames
+                # medidos: si es grande, el coste está FUERA del bucle medido.
+                overhead_ms = wall_ms - _t_accum * 1000.0
+                print(
+                    f"[PERF] {1000.0 / avg_ms:5.1f} FPS | frame {avg_ms:6.1f} ms "
+                    f"(max {_dt_max * 1000:6.1f}) | events {(_t1 - _t0) / _report_interval * 1000:5.1f} "
+                    f"update {(_t2 - _t1) / _report_interval * 1000:5.1f} "
+                    f"draw {(_t3 - _t2) / _report_interval * 1000:5.1f} "
+                    f"flip {(_t4 - _t3) / _report_interval * 1000:5.1f} "
+                    f"tick {(_t5 - _t4) / _report_interval * 1000:5.1f} ms | "
+                    f"wall30 {wall_ms:7.1f} overhead {overhead_ms:7.1f} ms | "
+                    f"parts={len(self.particles)} balls={len(self.balls)}",
+                    flush=True,
+                )
+                _perf = globals().get("_PERF_DRAW", {})
+                if _perf:
+                    parts = " ".join(
+                        f"{k}={v / _report_interval:6.1f}"
+                        for k, v in sorted(_perf.items(), key=lambda kv: -kv[1])
+                    )
+                    print(f"[PERF-DRAW] ms/frame: {parts}", flush=True)
+                    # reinicia acumuladores de secciones
+                    for _k in list(_perf):
+                        _perf[_k] = 0.0
+                _frame_count = 0
+                _t_accum = 0.0
+                _dt_max = 0.0
+                _wall_start = _time.perf_counter()
 
         pygame.quit()
         sys.exit()
