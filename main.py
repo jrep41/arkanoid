@@ -1042,7 +1042,7 @@ class Ball:
 
         # Sistema de cooldown para evitar múltiples hits
         self.collision_cooldown = 0  # Frames restantes de cooldown
-        self.last_hit_brick = None  # Último ladrillo golpeado
+        self.last_hit_brick: "Brick | None" = None  # Último ladrillo golpeado
 
         # Referencia al gestor de sonidos (se asigna al crear la pelota)
         self.game_sound_manager: sounds.SoundManager | None = None
@@ -2251,12 +2251,12 @@ class Game:
         """
         Constructor del juego. Inicializa pygame y configura el estado inicial.
         """
-        # Configurar ventana del juego
-        self.lasers = None
-        self.power_ups = None
-        self.bricks = None
-        self.balls = None
-        self.paddle = None
+        # Objetos del juego: se crean en reset_game() antes de usarse.
+        self.lasers: list[Laser]
+        self.power_ups: list[PowerUp]
+        self.bricks: list[Brick]
+        self.balls: list[Ball]
+        self.paddle: Paddle
         # En Android la ventana es la pantalla completa; en escritorio se abre
         # como ventana normal. En ambos casos pygame.SCALED escala el lienzo
         # lógico (SCREEN_WIDTH x SCREEN_HEIGHT) manteniendo la proporción, de
@@ -2343,8 +2343,6 @@ class Game:
         self.game_state = (
             "menu"  # Estado actual: 'menu', 'playing', 'game_over', 'victory'
         )
-        self.paore_popups = []  # Textos flotantes de puntos ganados (+20...)
-        self.scrticles = []  # Lista de partículas para efectos visuales
         self.screen_shake = 0  # Contador para efecto de temblor de pantalla
 
         # Estado de pausa
@@ -4141,6 +4139,9 @@ class Game:
             _t_accum = 0.0
             _dt_max = 0.0
             _wall_start = _time.perf_counter()
+
+        # Asignadas fuera del bucle: sólo se reasignan con la medición activa.
+        _t0 = _t1 = _t2 = _t3 = _t4 = _t5 = 0.0
 
         while running:
             if _perf_on:

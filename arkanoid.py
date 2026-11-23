@@ -501,11 +501,11 @@ class Game:
         """
         Constructor del juego. Inicializa pygame y configura el estado inicial.
         """
-        # Configurar ventana del juego
-        self.power_ups = None
-        self.bricks = None
-        self.balls = None
-        self.paddle = None
+        # Objetos del juego: se crean en reset_game() antes de usarse.
+        self.power_ups: list[PowerUp]
+        self.bricks: list[Brick]
+        self.balls: list[Ball]
+        self.paddle: Paddle
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption("Arkanoid - Python Game")
         self.clock = pygame.time.Clock()  # Para controlar velocidad del juego (60 FPS)
